@@ -1,0 +1,27 @@
+{
+    "id": "5AB23767",
+    "path": "D:/Code/Temporal_Analyses/Seas_Diel_Models.R",
+    "project_path": "Seas_Diel_Models.R",
+    "type": "r_source",
+    "hash": "473912481",
+    "contents": "",
+    "dirty": false,
+    "created": 1635200721950.0,
+    "source_on_save": false,
+    "relative_order": 3,
+    "properties": {
+        "tempName": "Untitled1",
+        "source_window_id": "",
+        "Source": "Source",
+        "cursorPosition": "98,4",
+        "scrollLine": "85"
+    },
+    "folds": "",
+    "lastKnownWriteTime": 1635292563,
+    "encoding": "UTF-8",
+    "collab_server": "",
+    "source_window": "",
+    "last_content_update": 1635292563858,
+    "read_only": false,
+    "read_only_alternatives": []
+}
