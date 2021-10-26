@@ -13,7 +13,7 @@ fileList = list.files(path=inDir,pattern=paste('*',int,'.csv',sep=""),
 
 # Plot presence data distributions and autocorrelation
 
-for (i in 1:numel(fileList)){  # for each species file
+for (i in 1:numel(fileList)){  # for each species' file
   
   thisCT = data.frame(read.csv(fileList[i]))  # load file
   attribs = attributes(thisCT)  # find names of sites (all columns but first)
