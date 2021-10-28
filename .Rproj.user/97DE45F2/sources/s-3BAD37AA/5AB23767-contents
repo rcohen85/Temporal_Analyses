@@ -18,10 +18,11 @@ int = "Daily"
 fileList = list.files(path=inDir,pattern=paste('*_',int,'.csv',sep=""),
                       full.names=TRUE,recursive=FALSE,
                       include.dirs=FALSE,no..=TRUE)
+goodIdx = c(1,2,4,8,11,13:19)
 
 
-for (i in 1:numel(fileList)){  # for each species' file
-
+for (i in goodIdx){  # for each species' file
+  
   thisCT = data.frame(read.csv(fileList[i]))  # load file
   attribs = attributes(thisCT)  # find names of sites (all columns but first)
   sites = attribs$names[2:numel(attribs$names)]
@@ -45,62 +46,103 @@ for (i in 1:numel(fileList)){  # for each species' file
     
     if (!numel(pres)==0){ # if there is any presence
       
+      # plot presence to determine if it's worth modeling
       plot(dateVec,thisCT[,j+1],main=paste(CTname,'at',sites[j],sep=" "),
            ylab="# 5-min Bins w Presence")
-      userVote = readline(promtp="Enter 1 to proceed with modeling, or 0 to skip to next deployment:")
       
-      
-      if (as.numeric(userVote)==1){
+      userVote = c()
+      while (numel(userVote)==0){
         
-        corr = acf(thisSite,lag.max=100,na.action=na.pass,plot=FALSE) 
+        userVote = readline(prompt="Enter 1 to proceed with modeling, or 0 to skip to next deployment: ")
+        
+        if (!numel(userVote)==0 && userVote!=1 && userVote!=0){
+          message('WARNING: Entry not allowed')
+          userVote = c()
+          
+        }
+        else if (numel(userVote)==0){
+          message('WARNING: Entry not allowed')
+        }
+        
+      }
+      
+      if (as.numeric(userVote)==1){ # if user says "yes" to modeling
+       
+        corr = acf(thisSite,lag.max=150,na.action=na.pass,plot=FALSE) 
         lagID = which(abs(corr$acf)<0.1) # determine lag at which autocorrelation is <0.15
         #itsVal = IntegralTimeScaleCalc(thisSite)
         numClust = length(thisSite)/(lagID[1]-1)
-        clustID = rep(1:ceiling(numClust),each=lagID[1]) # create grouping vector for GEEGLM
-        clustID = clustID[1:numel(thisSite)]
+        if (numClust<length(thisSite)){
+          clustID = rep(1:ceiling(numClust),each=lagID[1]) # create grouping vector for GEEGLM
+          clustID = clustID[1:numel(thisSite)]
+        } else {
+          clustID = 1:length(thisSite)
+        }
+        
         
         noDat = which(is.na(thisSite)) # remove days with no presence data
-        thisSite = thisSite[-noDat]
-        thisSite = round(thisSite)
-        reducedDateVec = dateVec[-noDat]
-        reducedClustID = clustID[-noDat]
-        #Jday = reducedDateVec$yday
-        Jday = as.numeric(format(reducedDateVec,"%j"))
-        monthGroup = month(reducedDateVec) # find which month each day of data falls in
-        yearGroup = year(reducedDateVec) # find which year each day of data falls in
+        if (!numel(noDat) == 0) {
+          thisSite = thisSite[-noDat]
+          reducedDateVec = dateVec[-noDat]
+          reducedClustID = clustID[-noDat]
+          Jday = as.numeric(format(reducedDateVec, "%j"))
+          # monthGroup = month(reducedDateVec) # find which month each day of data falls in
+          yearGroup = year(reducedDateVec) # find which year each day of data falls in
+        } else if (numel(noDat) == 0) {
+          reducedDateVec = dateVec
+          reducedClustID = clustID
+          Jday = as.numeric(format(reducedDateVec, "%j"))
+          # monthGroup = month(reducedDateVec) # find which month each day of data falls in
+          yearGroup = year(reducedDateVec) # find which year each day of data falls in
+        }
+        
+        if (j == 7) {
+          # create variable coding for change of site at HAT
+          hatSite = rep(2, length(reducedDateVec))
+          hatAdates = which(reducedDateVec <= as.Date("06-Feb-2017", format =
+                                                        "%d-%b-%Y"))
+          hatSite[hatAdates] = 1
+        }
         
         # account for leap day in 2016, shift Julian days by value of 1
         leapIdx = which(yearGroup==2016)
         Jday[leapIdx] = Jday[leapIdx]-1
         
+        # round presence data back to integers so it's Poisson distributed again
+        thisSite = round(thisSite)
         
         
         # Fit GAM
-        JDayGAM = gam(thisSite~s(Jday,bs="cc")+as.factor(yearGroup),
-                      family=tw)
+        if (j==7){
+          JDayGAM = gam(thisSite~s(Jday,bs="cc",k=6)+as.factor(yearGroup)+as.factor(hatSite),
+                        family=tw)
+        } else {JDayGAM = gam(thisSite~s(Jday,bs="cc",k=6)+as.factor(yearGroup),
+                      family=tw)}
         sinkName = paste(seasDir,'/',CTname,'/',sites[j],"_GAMSummary.txt",sep="")
         sink(sinkName)
         print(summary(JDayGAM))
         sink()
         
-        # Plot partial residuals
+        # Plot GAM partial residuals
         saveName = paste(seasDir,'/',CTname,'/',sites[j],"_GAM.png",sep="")
-        png(saveName,width=600,height=300)
+        png(saveName,width=800,height=400)
         plot.gam(JDayGAM,all.terms=TRUE,pages=1,main=paste(CTname,'at',sites[j]))
-        dev.off()
+        while (dev.cur()>1) {dev.off()}
         
         
         # Fit GEEGLM
+        if (j==7){
+          modJday = geeglm(thisSite~bs(Jday,knots=mean(Jday))+as.factor(yearGroup)+as.factor(hatSite),
+                           family=poisson(link="log"),
+                           id=reducedClustID,
+                           corstr="ar1")
+        } else {
+          modJday = geeglm(thisSite~bs(Jday,knots=mean(Jday))+as.factor(yearGroup),
+                           family=poisson(link="log"),
+                           id=reducedClustID,
+                           corstr="ar1")
+        }
         
-        # modJday = geeglm(thisSite~cSplineDes(Jday,seq(1,365,length.out=5))+
-        #                  as.factor(yearGroup),
-        #                family=poisson(link="log"),
-        #                id=reducedClustID,
-        #                corstr="ar1")
-        modJday = geeglm(thisSite~bs(Jday,knots=mean(Jday))+as.factor(yearGroup),
-                         family=poisson(link="log"),
-                         id=reducedClustID,
-                         corstr="ar1")
         sinkName = paste(seasDir,'/',CTname,'/',sites[j],"_GEEGLMSummary.txt",sep="")
         sink(sinkName)
         print(summary(modJday))
@@ -113,14 +155,23 @@ for (i in 1:numel(fileList)){  # for each species' file
         # summary(modMon)
         
         
-        # Bootstrap parameter estimate confidence intervals
+        # Bootstrap GEEGLM parameter estimate confidence intervals
         JDayForPlotting<- seq(min(Jday), max(Jday), length=50)
         JDayBootstrapParameters<-rmvnorm(10000, coef(modJday), summary(modJday)$cov.unscaled)
-        testJday<- glm(thisSite ~ bs(Jday,knots=mean(Jday))+
-                         as.factor(yearGroup),
-                       family=poisson)
-        Jx1<-model.matrix(testJday)[,2:5]%*%coef(modJday)[c(2:5)]
-        Jx2<-model.matrix(testJday)[,c(1,6:8)]%*%coef(modJday)[c(1,6:8)]
+        if (j==7){
+          testJday<- glm(thisSite ~ bs(Jday,knots=mean(Jday))+
+                           as.factor(yearGroup)+as.factor(hatSite),
+                         family=poisson)
+          Jx1<-model.matrix(testJday)[,2:5]%*%coef(modJday)[c(2:5)]
+          Jx2<-model.matrix(testJday)[,c(1,6:8)]%*%coef(modJday)[c(1,6:8)]
+          Jx3<-model.matrix(testJday)[,c(1,9)]%*%coef(modJday)[c(1,9)]
+        } else {
+          testJday<- glm(thisSite ~ bs(Jday,knots=mean(Jday))+
+                           as.factor(yearGroup),
+                         family=poisson)
+          Jx1<-model.matrix(testJday)[,2:5]%*%coef(modJday)[c(2:5)]
+          Jx2<-model.matrix(testJday)[,c(1,6:8)]%*%coef(modJday)[c(1,6:8)]
+        }
         
         
         # MonthForPlotting<- seq(min(monthGroup), max(monthGroup), length=50)
@@ -137,8 +188,14 @@ for (i in 1:numel(fileList)){  # for each species' file
         # cilY<-cis[1,]-mean(Jx2)-coef(modJday)[1]
         # ciuY<-cis[2,]-mean(Jx2)-coef(modJday)[1]
         
+        if (j==7){
+          hatSiteBootstrapCoefs<- JDayBootstrapParameters[,c(1,9)]
+          quant.func<- function(x){quantile(x, probs=c(0.025,0.975))}
+          cisH<-apply(hatSiteBootstrapCoefs, 2, quant.func)
+        }
         
-        # Plot partial residuals
+        
+        # Plot GEEGLM partial residuals
         # Julian Day
         JDayBootstrapCoefs<- JDayBootstrapParameters[,2:5]
         Basis<- bs(JDayForPlotting, knots=mean(Jday), Boundary.knots=range(Jday))
@@ -152,8 +209,9 @@ for (i in 1:numel(fileList)){  # for each species' file
         Jcil<-cis[1,]-mean(Jx1)-coef(modJday)[1]
         Jciu<-cis[2,]-mean(Jx1)-coef(modJday)[1]
         saveName = paste(seasDir,'/',CTname,'/',sites[j],"_GEEGLM_JDayPlot.png",sep="")
-        png(saveName,width=700,height=400)
-        qplot(JDayForPlotting,RealFitCenterJ,xlab="Julian Day", ylab="s(Julian Day)", 
+        # png(saveName,width=600,height=350)
+        qplot(JDayForPlotting,RealFitCenterJ,xlab="Julian Day", ylab="s(Julian Day)",
+              main=paste(CTname,'at',sites[j]),
               ylim=c(MinimumYlimJ, MaximumYlimJ),
               geom="line")+theme(axis.line = element_line(),
                                  panel.background=element_blank(),
@@ -162,7 +220,8 @@ for (i in 1:numel(fileList)){  # for each species' file
                                                                                colour="black",
                                                                                aes(ymin=Jcil,ymax=Jciu),
                                                                                stat="identity")+geom_rug(aes(x = Jday, y=-10000))
-        dev.off()
+        ggsave(saveName,device="png")
+        while (dev.cur()>1) {dev.off()}
         
         # Month
         # MonBootstrapCoefs<- MonBootstrapParameters[,2:5]
@@ -202,18 +261,34 @@ for (i in 1:numel(fileList)){  # for each species' file
                                        YearBootstrapCoefs[,3]+mean(YearBootstrapCoefs[,1]),
                                        YearBootstrapCoefs[,4]+mean(YearBootstrapCoefs[,1]))
         colnames(AdjustedYearCoefs) = c("2016","2017","2018","2019")
-        AdjustedYearCoefs = apply(AdjustedYearCoefs,2,exp)
+        # AdjustedYearCoefs = apply(AdjustedYearCoefs,2,exp) return to units of response var?
         
         
         saveName = paste(seasDir,'/',CTname,'/',sites[j],"_GEEGLM_YearPlot.png",sep="")
         png(saveName,width=500,height=400)
-        boxplot(AdjustedYearCoefs,main=paste(CTname,'at',sites[j]),
-                ylab=c("Daily Counts"),ylim=range(0:max(AdjustedYearCoefs)*1.2))
+        boxplot(AdjustedYearCoefs,main=paste(CTname,'at',sites[j]),outline=FALSE,
+                ylab=c("Year Coefficients"))
         #grid.arrange(plot1,plot2,ncol=1,nrow=2)
-        dev.off()
+        while (dev.cur()>1) {dev.off()}
+        
+        if (j==7){
+          AdjustedHATCoefs = data.frame(hatSiteBootstrapCoefs[,1],
+                                        hatSiteBootstrapCoefs[,2]+mean(hatSiteBootstrapCoefs[,1]))
+          colnames(AdjustedHATCoefs) = c("HAT_A","HAT_B")
+          # AdjustedYearCoefs = apply(AdjustedYearCoefs,2,exp) return to units of response var?
+          
+          
+          saveName = paste(seasDir,'/',CTname,'/',sites[j],"_GEEGLM_HATSitePlot.png",sep="")
+          png(saveName,width=500,height=400)
+          boxplot(AdjustedHATCoefs,main=paste(CTname,'at',sites[j]),outline=FALSE,
+                  ylab=c("HAT Site Coefficients"))
+          #grid.arrange(plot1,plot2,ncol=1,nrow=2)
+          while (dev.cur()>1) {dev.off()}
+          
+        }
       }
-    
+      
     }
-
+    
   }
 }

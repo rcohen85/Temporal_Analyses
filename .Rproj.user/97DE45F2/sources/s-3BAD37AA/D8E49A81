@@ -1,0 +1,28 @@
+{
+    "id": "D8E49A81",
+    "path": null,
+    "project_path": null,
+    "type": "object_explorer",
+    "hash": "0",
+    "contents": "",
+    "dirty": false,
+    "created": 1635446576095.0,
+    "source_on_save": false,
+    "relative_order": 6,
+    "properties": {
+        "id": "354cada93e7c433980c6702df2317568",
+        "name": "testJday",
+        "title": "testJday",
+        "language": "R",
+        "source_window_id": "",
+        "Source": "Source"
+    },
+    "folds": "",
+    "lastKnownWriteTime": 1635446500,
+    "encoding": "",
+    "collab_server": "",
+    "source_window": "",
+    "last_content_update": 1635446576095,
+    "read_only": false,
+    "read_only_alternatives": []
+}

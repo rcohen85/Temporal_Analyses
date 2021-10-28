@@ -36,9 +36,15 @@ for (i in 1:numel(fileList)){  # for each species' file
     
     thisSite = as.numeric(thisCT[,j+1]) # get presence data for this site
     noDat = which(is.na(thisSite)) # remove days with no presence data
-    thisSite = thisSite[-noDat]
-    reducedDateVec = dateVec[-noDat]
-    monthGroup = month(reducedDateVec) # find which month each day of data falls in
+    if (!numel(noDat) == 0){
+      thisSite = thisSite[-noDat]
+      reducedDateVec = dateVec[-noDat]
+      monthGroup = month(reducedDateVec) # find which month each day of data falls in
+    } else if (numel(noDat) == 0) {
+      reducedDateVec = dateVec
+      monthGroup = month(reducedDateVec) # find which month each day of data falls in
+    }
+   
     
     pres = which(thisSite!=0)
     
