@@ -67,7 +67,7 @@ for (i in 1:numel(fileList)){  # for each species' file
       # Plot data by month
       saveName = paste(seasDir,'/',CTname,'/',sites[j],"_MonthlyBoxplot.png",sep="")
       png(saveName)
-      boxplot(thisSite~monthGroup,main=paste(paste(CTname,'at',sites[j])),
+      boxplot(thisSite~monthGroup,main=(paste(CTname,'at',sites[j])),
               xlab=c("Month"),ylab=c("Daily Counts"))
       dev.off()
       
