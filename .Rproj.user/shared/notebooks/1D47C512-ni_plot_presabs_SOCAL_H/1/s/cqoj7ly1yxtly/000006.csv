@@ -1,0 +1,3 @@
+"0","maxRLpp = zcdata$maxRLpp"
+"0","maxRLpp[maxRLpp==0] = NA"
+"0","plot.distr(maxRLpp,bwPres,""Max. RLpp"",bwColor)"

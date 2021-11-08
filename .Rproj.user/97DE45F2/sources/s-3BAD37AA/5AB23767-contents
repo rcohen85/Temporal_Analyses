@@ -1,6 +1,7 @@
 library(geepack)
 library(statmod)
 library(splines)
+library(splines2)
 library(SimDesign)
 library(gridExtra)
 library(ggplot2)
@@ -19,6 +20,7 @@ fileList = list.files(path=inDir,pattern=paste('*_',int,'.csv',sep=""),
                       full.names=TRUE,recursive=FALSE,
                       include.dirs=FALSE,no..=TRUE)
 goodIdx = c(1,2,4,8,11,13:19)
+
 
 
 for (i in goodIdx){  # for each species' file
@@ -69,8 +71,8 @@ for (i in goodIdx){  # for each species' file
       if (as.numeric(userVote)==1){ # if user says "yes" to modeling
        
         corr = acf(thisSite,lag.max=150,na.action=na.pass,plot=FALSE) 
-        lagID = which(abs(corr$acf)<0.1) # determine lag at which autocorrelation is <0.15
-        #itsVal = IntegralTimeScaleCalc(thisSite)
+        lagID = which(abs(corr$acf)<0.2) # determine lag at which autocorrelation is <0.2
+        # itsVal = IntegralTimeScaleCalc(thisSite)
         numClust = length(thisSite)/(lagID[1]-1)
         if (numClust<length(thisSite)){
           clustID = rep(1:ceiling(numClust),each=lagID[1]) # create grouping vector for GEEGLM
@@ -125,19 +127,26 @@ for (i in goodIdx){  # for each species' file
         
         # Plot GAM partial residuals
         saveName = paste(seasDir,'/',CTname,'/',sites[j],"_GAM.png",sep="")
-        png(saveName,width=800,height=400)
+        if (j==7){
+          png(saveName,width=800,height=500)
+        } else {
+          png(saveName,width=800,height=400)
+        }
+        
         plot.gam(JDayGAM,all.terms=TRUE,pages=1,main=paste(CTname,'at',sites[j]))
         while (dev.cur()>1) {dev.off()}
         
         
-        # Fit GEEGLM
+        # Fit GEEGLM; previously used bs(Jday,knots=mean(Jday))
         if (j==7){
-          modJday = geeglm(thisSite~bs(Jday,knots=mean(Jday))+as.factor(yearGroup)+as.factor(hatSite),
+          modJday = geeglm(thisSite~mSpline(Jday,knots=c(120,250),Boundary.knots=c(1,365),periodic=T)
+                           +as.factor(yearGroup)+as.factor(hatSite),
                            family=poisson(link="log"),
                            id=reducedClustID,
                            corstr="ar1")
         } else {
-          modJday = geeglm(thisSite~bs(Jday,knots=mean(Jday))+as.factor(yearGroup),
+          modJday = geeglm(thisSite~mSpline(Jday,knots=c(120,250),Boundary.knots=c(1,365),periodic=T)
+                           +as.factor(yearGroup),
                            family=poisson(link="log"),
                            id=reducedClustID,
                            corstr="ar1")
@@ -162,15 +171,15 @@ for (i in goodIdx){  # for each species' file
           testJday<- glm(thisSite ~ bs(Jday,knots=mean(Jday))+
                            as.factor(yearGroup)+as.factor(hatSite),
                          family=poisson)
-          Jx1<-model.matrix(testJday)[,2:5]%*%coef(modJday)[c(2:5)]
-          Jx2<-model.matrix(testJday)[,c(1,6:8)]%*%coef(modJday)[c(1,6:8)]
-          Jx3<-model.matrix(testJday)[,c(1,9)]%*%coef(modJday)[c(1,9)]
+          Jx1<-model.matrix(testJday)[,2:3]%*%coef(modJday)[c(2:3)]
+          Jx2<-model.matrix(testJday)[,c(1,4:6)]%*%coef(modJday)[c(1,4:6)]
+          Jx3<-model.matrix(testJday)[,c(1,7)]%*%coef(modJday)[c(1,7)]
         } else {
           testJday<- glm(thisSite ~ bs(Jday,knots=mean(Jday))+
                            as.factor(yearGroup),
                          family=poisson)
-          Jx1<-model.matrix(testJday)[,2:5]%*%coef(modJday)[c(2:5)]
-          Jx2<-model.matrix(testJday)[,c(1,6:8)]%*%coef(modJday)[c(1,6:8)]
+          Jx1<-model.matrix(testJday)[,2:3]%*%coef(modJday)[c(2:3)]
+          Jx2<-model.matrix(testJday)[,c(1,4:6)]%*%coef(modJday)[c(1,4:6)]
         }
         
         
@@ -182,14 +191,14 @@ for (i in goodIdx){  # for each species' file
         # Mx1<-model.matrix(testMon)[,2:5]%*%coef(modMon)[c(2:5)]
         # Mx2<-model.matrix(testMon)[,c(1,6:8)]%*%coef(modMon)[c(1,6:8)]
         
-        YearBootstrapCoefs<- JDayBootstrapParameters[,c(1,6:8)]
+        YearBootstrapCoefs<- JDayBootstrapParameters[,c(1,4:6)]
         quant.func<- function(x){quantile(x, probs=c(0.025,0.975))}
         cisY<-apply(YearBootstrapCoefs, 2, quant.func)
         # cilY<-cis[1,]-mean(Jx2)-coef(modJday)[1]
         # ciuY<-cis[2,]-mean(Jx2)-coef(modJday)[1]
         
         if (j==7){
-          hatSiteBootstrapCoefs<- JDayBootstrapParameters[,c(1,9)]
+          hatSiteBootstrapCoefs<- JDayBootstrapParameters[,c(1,7)]
           quant.func<- function(x){quantile(x, probs=c(0.025,0.975))}
           cisH<-apply(hatSiteBootstrapCoefs, 2, quant.func)
         }
@@ -197,9 +206,10 @@ for (i in goodIdx){  # for each species' file
         
         # Plot GEEGLM partial residuals
         # Julian Day
-        JDayBootstrapCoefs<- JDayBootstrapParameters[,2:5]
-        Basis<- bs(JDayForPlotting, knots=mean(Jday), Boundary.knots=range(Jday))
-        RealFit<- Basis%*%coef(modJday)[c(2:5)]
+        JDayBootstrapCoefs<- JDayBootstrapParameters[,2:3]
+        # Basis<- bs(JDayForPlotting, knots=mean(Jday), Boundary.knots=range(Jday))
+        Basis<- mSpline(JDayForPlotting,knots=c(120,250),Boundary.knots=c(1,365),periodic=T)
+        RealFit<- Basis%*%coef(modJday)[c(2:3)]
         RealFitCenterJ<- RealFit-mean(Jx1)-coef(modJday)[1]
         JDayBootstrapFits<- Basis%*%t(JDayBootstrapCoefs)
         quant.func<- function(x){quantile(x, probs=c(0.025,0.975))}
@@ -256,10 +266,15 @@ for (i in goodIdx){  # for each species' file
         # j + geom_linerange(data.frame(modJday$coefficients[c(1,6:8)]),
         #                    ymin=cis[1,],ymax=cis[2,])
         
-        AdjustedYearCoefs = data.frame(YearBootstrapCoefs[,1],
-                                       YearBootstrapCoefs[,2]+mean(YearBootstrapCoefs[,1]),
-                                       YearBootstrapCoefs[,3]+mean(YearBootstrapCoefs[,1]),
-                                       YearBootstrapCoefs[,4]+mean(YearBootstrapCoefs[,1]))
+        # AdjustedYearCoefs = data.frame(YearBootstrapCoefs[,1],
+        #                                YearBootstrapCoefs[,2]+mean(YearBootstrapCoefs[,1]),
+        #                                YearBootstrapCoefs[,3]+mean(YearBootstrapCoefs[,1]),
+        #                                YearBootstrapCoefs[,4]+mean(YearBootstrapCoefs[,1]))
+        # Center 
+        AdjustedYearCoefs = data.frame(YearBootstrapCoefs[,1]-mean(YearBootstrapCoefs[,1]),
+                                       YearBootstrapCoefs[,2],
+                                       YearBootstrapCoefs[,3],
+                                       YearBootstrapCoefs[,4])
         colnames(AdjustedYearCoefs) = c("2016","2017","2018","2019")
         # AdjustedYearCoefs = apply(AdjustedYearCoefs,2,exp) return to units of response var?
         

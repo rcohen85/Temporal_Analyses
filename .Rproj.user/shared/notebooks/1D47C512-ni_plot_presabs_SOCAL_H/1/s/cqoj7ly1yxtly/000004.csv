@@ -1,0 +1,3 @@
+"0","sProp = zcdata$sProp"
+"0","sProp[sProp==0] = NA"
+"0","plot.distr(sProp,bwPres,""Sonar prop./min"",bwColor)"

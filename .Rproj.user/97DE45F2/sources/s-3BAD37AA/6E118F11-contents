@@ -1,18 +1,15 @@
 IntegralTimeScaleCalc = function(ts){
   
-  avt = mean(ts)
+  avt = mean(ts,na.rm=TRUE)
   dcc = ts-avt
   
-  [y,lag] = xcorr(dcc,'coeff');
-  
-
-  plot(lag,y)
+  q = acf(dcc,na.action=na.pass,plot=TRUE);
    
-  i = ceiling(length(y)/2);
+  i = ceiling(length(q$acf)/2);
   its = 0;
   
-  while (y[i]>0){
-  its = its+y[i];
+  while (q$acf[i]>0){
+  its = its+q$acf[i];
   i = i+1;
   }
 

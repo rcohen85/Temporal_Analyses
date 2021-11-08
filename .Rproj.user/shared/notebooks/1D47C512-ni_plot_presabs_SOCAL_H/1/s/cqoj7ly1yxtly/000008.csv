@@ -1,0 +1,3 @@
+"0","cumSEL = zcdata$cumSEL"
+"0","cumSEL[cumSEL==0] = NA"
+"0","plot.distr(cumSEL,bwPres,""Cum. SEL"",bwColor)"

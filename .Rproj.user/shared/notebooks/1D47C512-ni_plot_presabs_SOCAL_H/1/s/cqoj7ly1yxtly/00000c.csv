@@ -1,0 +1,3 @@
+"0","#plot.distr(zcdata$sunriseLag/60,bwPres,""Hours since sunrise"",bwColor)"
+"0","#plot.distr(zcdata$sunsetLag/60,bwPres,""Hours since sunset"",bwColor)"
+"0","plot.distr(zcdata$jd,bwPres,""Julian Date"",bwColor)"

@@ -1,0 +1,5 @@
+"0","sLag = zcdata$sLag"
+"0","sLag[sLag==0] = NA"
+"0","bwPres = zcdata$zcPres"
+"0","bwColor = ""darkgray"""
+"0","plot.distr(sLag/1440,bwPres,""Sonar lag (days)"",bwColor)"
