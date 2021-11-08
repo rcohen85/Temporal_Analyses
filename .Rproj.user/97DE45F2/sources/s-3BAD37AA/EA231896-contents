@@ -206,15 +206,22 @@ for (i in goodIdx){  # for each species' file
         #MinimumYlimJ<- min(cisJ-mean(Jx1)-coef(modJday)[1])
         #MaximumYlimJ<- max(cisJ-mean(Jx1)-coef(modJday)[1])
         saveName = paste(seasDir,'/',CTname,'/',sites[j],"_",int,"_GEEGLM_JDayPlot.png",sep="")
+        
+        plotDF = data.frame(JDayForPlotting,RealFitCenterJ)
+        colnames(plotDF) = c("Jday","Fit")
         dJday = stats::density(Jday,na.rm = TRUE) # Calculate kernel density of Jday observations
-        plotDF = data.frame(JDayForPlotting,RealFitCenterJ,dJday$x,dJday$y)
-        colnames(plotDF) = c("Jday","Fit","Day","Density")
-        plotDF$Density = plotDF$Density/max(plotDF$Density) # normalize kernel density
-        plotDF$Density = plotDF$Density
+        dens = data.frame(c(dJday$x,rev(dJday$x)),c(dJday$y,rep(0,length(dJday$y))))
+        colnames(dens) = c("Day","Density")
+        dens$Density = dens$Density/max(dens$Density) # normalize kernel density
+        dens$Density = dens$Density - abs(min(Jcil))
+        
         # png(saveName,width=600,height=350)
-        #ggplot(dens,aes(x=Day,y=Density)) + geom_area(data=plotDF,x=Day,y=Density,fill=4,alpha=0.2)+
         ggplot(plotDF, aes(Jday, Fit),
-               ) + geom_smooth(fill = "grey",
+               ) + geom_polygon(data=dens,
+                                aes(Day,Density),
+                                fill=4,
+                                alpha=0.2
+                  )+ geom_smooth(fill = "grey",
                                colour = "black",
                                aes(ymin=Jcil, ymax=Jciu),
                                stat ="identity"
@@ -223,72 +230,55 @@ for (i in goodIdx){  # for each species' file
                          title = paste(CTname, 'at',sites[j]),
                  ) + theme(axis.line = element_line(),
                            panel.background = element_blank()
-                 ) + geom_polygon(data=plotDF,
-                                  aes(Day,Density),
-                                  fill=4,
-                                  alpha=0.2)
-          
-          
-          #geom_area(data = plotDF,
-                              # aes(Day, Density),
-                              # fill = 4,
-                               #alpha = 0.2)
-          #+ geom_density(data=plotDF,aes(Jday,Fit,fill=4,alpha=0.2),stat="density")
-
-          
-        # qplot(
-        #   JDayForPlotting,
-        #   RealFitCenterJ,
-        #   xlab = "Julian Day",
-        #   ylab = "s(Julian Day)",
-        #   main = paste(CTname, 'at', sites[j]),
-        #   ylim = c(MinimumYlimJ, MaximumYlimJ),
-        #   geom = "line"
-        # ) + theme(
-        #   axis.line = element_line(),
-        #   panel.background = element_blank(),
-        #   panel.grid.major = element_blank(),
-        #   panel.grid.minor = element_blank()
-        # ) + geom_smooth(
-        #   fill = "grey",
-        #   colour =
-        #     "black",
-        #   aes(ymin =
-        #         Jcil, ymax = Jciu),
-        #   stat =
-        #     "identity") + geom_rug(aes(x = Jday, y = -10000))
-        polygon(Jday,thisSite, xlim=range(Jday),col="lightgray",border = FALSE, main = "",xlab =  "",ylab = "")
-        ggsave(saveName, device = "png")
+                 ) 
+  
+        ggsave(saveName,device="png",width=600,height=350,units="px")
         while (dev.cur()>1) {dev.off()}
         
        
         # Year (as boxplot)
         # Center intercept (1st level of year factor) at 0 and show other levels relative to it
-        AdjustedYearCoefs = data.frame(YearBootstrapCoefs[,1]-mean(YearBootstrapCoefs[,1]),
-                                       YearBootstrapCoefs[,2],
-                                       YearBootstrapCoefs[,3],
-                                       YearBootstrapCoefs[,4])
-        colnames(AdjustedYearCoefs) = c("2016","2017","2018","2019")
+        # AdjustedYearCoefs = data.frame(YearBootstrapCoefs[,1]-mean(YearBootstrapCoefs[,1]),
+        #                                YearBootstrapCoefs[,2],
+        #                                YearBootstrapCoefs[,3],
+        #                                YearBootstrapCoefs[,4])
+        # colnames(AdjustedYearCoefs) = c("2016","2017","2018","2019")
         # AdjustedYearCoefs = apply(AdjustedYearCoefs,2,exp) return to units of response var?
-        
-        
+        AdjustedYearCoefs = data.frame(c(YearBootstrapCoefs[,1]-mean(YearBootstrapCoefs[,1]),
+                                         YearBootstrapCoefs[,2],
+                                         YearBootstrapCoefs[,3],
+                                         YearBootstrapCoefs[,4]),
+                                       as.factor(rep(2016:2019,each=10000)))
+        colnames(AdjustedYearCoefs) = c("Coefficient","Year")
+
         saveName = paste(seasDir,'/',CTname,'/',sites[j],"_",int,"_GEEGLM_YearPlot.png",sep="")
-        png(saveName,width=500,height=400)
-        boxplot(AdjustedYearCoefs,main=paste(CTname,'at',sites[j]),outline=FALSE,
-                ylab=c("Year Coefficients"))
-        #grid.arrange(plot1,plot2,ncol=1,nrow=2)
+        # png(saveName,width=500,height=400)
+        # boxplot(AdjustedYearCoefs,main=paste(CTname,'at',sites[j]),outline=FALSE,
+        #         ylab=c("Year Coefficients"))
+        ggplot(AdjustedYearCoefs,aes(Year,Coefficient)
+               ) + geom_boxplot()+ theme(axis.line = element_line(),
+                                         panel.background = element_blank())
+        ggsave(saveName,device="png",width=600,height=350,units="px")
         while (dev.cur()>1) {dev.off()}
         
         # Site (as boxplot), if HAT
         if (j==7){
-          AdjustedHATCoefs = data.frame(hatSiteBootstrapCoefs[,1]-mean(hatSiteBootstrapCoefs[,1]),
-                                        hatSiteBootstrapCoefs[,2])
-          colnames(AdjustedHATCoefs) = c("HAT_A","HAT_B")
+          # AdjustedHATCoefs = data.frame(hatSiteBootstrapCoefs[,1]-mean(hatSiteBootstrapCoefs[,1]),
+          #                               hatSiteBootstrapCoefs[,2])
+          # colnames(AdjustedHATCoefs) = c("HAT_A","HAT_B")
+          AdjustedHATCoefs = data.frame(c(hatSiteBootstrapCoefs[,1]-mean(hatSiteBootstrapCoefs[,1]),
+                                        hatSiteBootstrapCoefs[,2]),
+                                        as.factor(rep(c("HAT_A","HAT_B",each=10000))))
+          colnames(AdjustedHATCoefs) = c("Coefficients","Site")
           
           saveName = paste(seasDir,'/',CTname,'/',sites[j],"_",int,"_GEEGLM_HATSitePlot.png",sep="")
-          png(saveName,width=500,height=400)
-          boxplot(AdjustedHATCoefs,main=paste(CTname,'at',sites[j]),outline=FALSE,
-                  ylab=c("HAT Site Coefficients"))
+          # png(saveName,width=500,height=400)
+          # boxplot(AdjustedHATCoefs,main=paste(CTname,'at',sites[j]),outline=FALSE,
+          #         ylab=c("HAT Site Coefficients"))
+          ggplot(AdjustedHATCoefs,aes(Site,Coefficient)
+          ) + geom_boxplot()+ theme(axis.line = element_line(),
+                                    panel.background = element_blank())
+          ggsave(saveName,device="png",width=600,height=350,units="px")
           while (dev.cur()>1) {dev.off()}
           
         }
