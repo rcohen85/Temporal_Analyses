@@ -3,7 +3,7 @@ IntegralTimeScaleCalc = function(ts){
   avt = mean(ts,na.rm=TRUE)
   dcc = ts-avt
   
-  q = acf(dcc,na.action=na.pass,plot=TRUE);
+  q = acf(dcc,na.action=na.pass,plot=FALSE);
    
   i = ceiling(length(q$acf)/2);
   its = 0;
