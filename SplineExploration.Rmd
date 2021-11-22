@@ -1,0 +1,111 @@
+---
+title: "SplineExploration"
+author: "RC"
+date: "11/18/2021"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(splines)
+library(splines2)
+library(mgcv)
+```
+
+## M-splines
+
+“M-splines can be used directly as basis splines for regression analysis involving positive response data (constraining the regression coefficients to be non-negative)” -Wikipedia
+
+“M-splines (Ramsay 1988) can be considered as a normalized version of B-splines with unit integral within boundary knots”
+
+from: https://mran.microsoft.com/snapshot/2017-01-31/web/packages/splines2/vignettes/splines2-intro.html
+
+
+
+```{r m-splines}
+### example given in the reference paper by Ramsay (1988)
+# basic m-spline with unevenly-spaced interior knots
+x <- seq.int(0, 1, 0.01)
+knots <- c(0.3, 0.5, 0.6)
+msMat <- mSpline(x, knots = knots, degree = 2, intercept = TRUE)
+matplot(x, msMat, type = "l", ylab = "y", ylim = c(0,5), main = "m-spline, degree = 2")
+abline(v = knots, lty = 2, col = "gray")
+
+# Make it periodic
+msPMat <- mSpline(x, knots = knots, degree = 2, intercept = TRUE, periodic = TRUE)
+matplot(x, msPMat, type = "l", ylim = c(0,5), main = "periodic m-spline, degree = 2")
+abline(v = knots, lty = 2, col = "gray")
+
+# Using real data, but (mostly) the same settings:
+knots = quantile(Jday, probs=c(0.333,0.666))
+Jday_mat1 = mSpline(Jday,knots=knots,degree = 2, intercept = TRUE)
+matplot(Jday, Jday_mat1, type = "p", pch = '.', ylab = "y", main = "m-spline, JDay data, non-periodic, degree = 2")
+abline(v = knots, lty = 2, col = "gray")
+
+# Using real data, periodic, other settings:
+knots = quantile(Jday, probs=c(0.333,0.666))
+Jday_mat2 = mSpline(Jday,knots=knots, Boundary.knots=c(1,365),degree = 2, periodic=T,intercept = TRUE)
+matplot(Jday, Jday_mat2, type = "p", pch = '.', ylab = "y", main = "periodic m-spline, JDay data, degree = 2")
+abline(v = knots, lty = 2, col = "gray")
+
+# As it is in RC's GEEGLM
+knots = quantile(Jday, probs=c(0.333,0.666))
+Jday_mat3 = mSpline(Jday,knots = quantile(Jday,probs=c(0.333,0.666)),Boundary.knots=c(1,365),periodic=T)
+matplot(Jday, Jday_mat3, type = "p", pch = '.', ylab = "y", main = "m-spline as in RC's GEEGLMs (no intercept, degree = 3?)")
+abline(v = knots, lty = 2, col = "gray")
+
+```
+
+## B-splines
+
+“a B-spline or “basis spline” is a spline function that has minimal support with respect to a given degree, smoothness, and domain partition. Any spline function of given degree can be expressed as a linear combination of B-splines of that degree” - Wikipedia
+
+“span the space of cubic splines for the knot sequence”
+from: https://www.hds.utc.fr/~tdenoeux/dokuwiki/_media/en/splines.pdf
+Think this means b-splines include cubic splines?
+
+
+```{r b-splines}
+# Same as above but with a b-spline
+# NOTE: No option for cyclic variables in bs()
+x <- seq.int(0, 1, 0.01)
+knots <- c(0.3, 0.5, 0.6)
+bsMat <- bs(x, knots = knots, degree = 2, intercept = TRUE)
+matplot(x, bsMat, type = "l", ylim = c(0,5), main = "b-spline, degree = 2")
+abline(v = knots, lty = 2, col = "gray")
+
+# Using real data, but (mostly) the same settings: 
+knots = quantile(Jday, probs=c(0.333,0.666))
+Jday_mat4 <- bs(Jday, knots = knots, degree = 2, intercept = TRUE)
+matplot(Jday, Jday_mat4, type = "p", pch = '.', ylab = "y", main = "b-spline, JDay data, non-cyclic, degree = 2")
+abline(v = knots, lty = 2, col = "gray")
+
+# Increasing degree to get a cubic b-spline:
+Jday_mat5 <- bs(Jday, knots = knots, degree = 3, intercept = TRUE)
+matplot(Jday, Jday_mat5, type = "p", pch = '.', ylab = "y", main = "b-spline, JDay data, non-cyclic, degree = 3 (cubic)")
+abline(v = knots, lty = 2, col = "gray")
+```
+## Cyclic Variance-Covariance Splines
+
+
+```{r cubic splines}
+# adapted from Benjamins '17 harbour porpoise paper (changed family to poisson, knots to fit range of Jday)
+# Note: intercept (first column of basis) is excluded
+knots = seq(1,365,length=6)
+var_covar_6 = gam(thisSite~s(Jday, bs="cc", k=6), fit=FALSE, family=poisson, 
+                knots = list(knots))$X[,2:5]
+matplot(Jday, var_covar_6, type = "p", pch = '.', ylab = "y", main = "variance-covariance cubic, k = 6")
+abline(v = knots, lty = 2, col = "gray")
+
+# reduce # of knots to 4
+knots = seq(1,365,length=4)
+var_covar_4 = gam(thisSite~s(Jday, bs="cc", k=4), fit=FALSE, family=poisson, 
+                knots = list(knots))$X[,2:3]
+matplot(Jday, var_covar_4, type = "p", pch = '.', ylab = "y", main = "variance-covariance cubic, k = 4")
+abline(v = knots, lty = 2, col = "gray")
+
+```
+
+
+
+
