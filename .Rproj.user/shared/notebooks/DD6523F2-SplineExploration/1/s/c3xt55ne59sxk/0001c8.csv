@@ -1,0 +1,4 @@
+"0",""
+"0","# Make it periodic"
+"0","msPMat <- mSpline(x, knots = knots, degree = 2, intercept = TRUE, periodic = TRUE)"
+"0","matplot(x, msPMat, type = ""l"", ylim = c(0,5), main = ""periodic m-spline, degree = 2"")"

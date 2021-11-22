@@ -1,0 +1,5 @@
+"0",""
+"0","# Using real data, but (mostly) the same settings:"
+"0","knots = quantile(Jday, probs=c(0.333,0.666))"
+"0","Jday_mat1 = mSpline(Jday,knots=knots,degree = 2, intercept = TRUE)"
+"0","matplot(Jday, Jday_mat1, type = ""p"", pch = '.', ylab = ""y"", main = ""m-spline, JDay data, non-periodic, degree = 2"")"

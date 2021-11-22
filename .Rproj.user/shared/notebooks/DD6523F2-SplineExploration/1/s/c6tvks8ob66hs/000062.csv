@@ -1,0 +1,6 @@
+"0","# Same as above but with a b-spline"
+"0","# NOTE: No option for cyclic variables in bs()"
+"0","x <- seq.int(0, 1, 0.01)"
+"0","knots <- c(0.3, 0.5, 0.6)"
+"0","bsMat <- bs(x, knots = knots, degree = 2, intercept = TRUE)"
+"0","matplot(x, bsMat, type = ""l"", ylim = c(0,5), main = ""b-spline, degree = 2"")"

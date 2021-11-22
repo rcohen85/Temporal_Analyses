@@ -1,0 +1,26 @@
+getTwilight = function(lat,lon,siteName,start,end){
+  
+  sc = system.file(package="suncalc") # check if suncalc package is installed
+  if (!numel(sc)==0){
+    library(suncalc)
+  } else {
+    install.packages(suncalc)
+    library(suncalc)
+  }
+  
+  
+  dateRange = seq.Date(start,end,by=1)
+  TWtimes=data.frame(matrix(nrow=length(dateRange),ncol=length(lat)*2))
+  colnames(TWtimes) = siteName
+  
+  s=1
+  for (i in 1:length(lats)){
+    TWdata = getSunlightTimes(date=dateRange,lat=lat[i],lon=lon[i],keep=c("nauticalDawn","sunrise","sunset","nauticalDusk"),tz="UTC")
+    #dawnDusk = data.frame(TWdata$nauticalDawn,TWdata$nauticalDusk)
+    TWtimes[,s] = TWdata$nauticalDawn
+    TWtimes[,s+1] = TWdata$sunrise
+    TWtimes[,s+2] = TWdata$nauticalDusk
+    s=s+5
+  }
+  
+}
