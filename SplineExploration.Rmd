@@ -14,6 +14,8 @@ library(mgcv)
 
 ## M-splines
 
+(need to load/generate a series of Julian day values ("Jday") to test splines)
+
 “M-splines can be used directly as basis splines for regression analysis involving positive response data (constraining the regression coefficients to be non-negative)” -Wikipedia
 
 “M-splines (Ramsay 1988) can be considered as a normalized version of B-splines with unit integral within boundary knots”
@@ -49,12 +51,35 @@ matplot(Jday, Jday_mat2, type = "p", pch = '.', ylab = "y", main = "periodic m-s
 abline(v = knots, lty = 2, col = "gray")
 
 # As it is in RC's GEEGLM
-knots = quantile(Jday, probs=c(0.333,0.666))
-Jday_mat3 = mSpline(Jday,knots = quantile(Jday,probs=c(0.333,0.666)),Boundary.knots=c(1,365),periodic=T)
+knots = quantile(Jday, probs=c(0.275,0.5,0.725))
+Jday_mat3 = mSpline(Jday,knots = quantile(Jday,probs=c(0.275,0.5,0.725)),Boundary.knots=c(1,365),periodic=T)
 matplot(Jday, Jday_mat3, type = "p", pch = '.', ylab = "y", main = "m-spline as in RC's GEEGLMs (no intercept, degree = 3?)")
 abline(v = knots, lty = 2, col = "gray")
 
 ```
+
+````{r NP's code}
+year = runif(3000,2011,2019)
+
+year_mat1 = mSpline(year, knots=quantile(year, probs=c(0.333,0.666)), Boundary.knots=c(2011,2019))
+matplot(year, year_mat1, type = "p", pch = '.', ylab = "y", main = "as in NP's GEEGLMs")
+abline(v = quantile(year, probs=c(0.333,0.666)), lty = 2, col = "gray")
+
+year_mat2 = mSpline(year, knots=quantile(year, probs=c(0.333,0.666)), Boundary.knots=c(2011,2019),periodic=T)
+matplot(year, year_mat2, type = "p", pch = '.', ylab = "y", main = "as in NP's GEEGLMs + periodic")
+abline(v = quantile(year, probs=c(0.333,0.666)), lty = 2, col = "gray")
+
+year_mat3 = mSpline(year, knots=quantile(year, probs=c(0.333,0.666)), Boundary.knots=c(2011,2019), intercept=T)
+matplot(year, year_mat3, type = "p", pch = '.', ylab = "y", main = "as in NP's GEEGLMs + intercept")
+abline(v = quantile(year, probs=c(0.333,0.666)), lty = 2, col = "gray")
+
+year_mat4 = mSpline(year, knots=quantile(year, probs=c(0.333,0.666)), Boundary.knots=c(2011,2019),periodic=T, intercept=T)
+matplot(year, year_mat4, type = "p", pch = '.', ylab = "y", main = "as in NP's GEEGLMs + periodic + intercept")
+abline(v = quantile(year, probs=c(0.333,0.666)), lty = 2, col = "gray")
+
+````
+
+
 
 ## B-splines
 

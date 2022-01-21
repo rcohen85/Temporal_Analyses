@@ -1,0 +1,323 @@
+---
+title: "Temporal_Models"
+author: "RC"
+date: "11/22/2021"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(tidyverse)
+library(lubridate)
+library(geepack)
+library(splines2)
+library(SimDesign)
+library(pracma)
+library(mgcv)
+library(car)
+library(corrplot)
+source("getPvalues.r")
+```
+
+## Get list of Master data files
+Tell which file to look at by setting the value of "i"
+
+```{r find files}
+modelDFDir = 'I:/TimeSeries_ScaledByEffortError'
+int = '5minBin'
+dfList = list.files(path=modelDFDir,pattern=paste('*Master.csv',sep=""),
+                    full.names=TRUE,recursive=FALSE,
+                    include.dirs=FALSE,no..=TRUE)
+i = 1
+thisSite = data.frame(read.csv(dfList[i]))
+CTname = str_remove(dfList[i],paste(modelDFDir,'/',sep="")) # get the species/CT name
+CTname = str_remove(CTname,paste('_',int,'_Master.csv',sep=""))
+```
+
+## Assess correlation & collinearity btwn covars 
+(adapted from Benjamins '17)
+
+
+```{r correlation & collinearity}
+corrDF = thisSite[,-c(1,2)]
+corrDF$DayPhase[which(corrDF$DayPhase=="Dawn")] = 1
+corrDF$DayPhase[which(corrDF$DayPhase=="Day")] = 2
+corrDF$DayPhase[which(corrDF$DayPhase=="Dusk")] = 3
+corrDF$DayPhase[which(corrDF$DayPhase=="Night")] = 4
+corrDF$DayPhase = as.numeric(corrDF$DayPhase)
+C = cor(corrDF)
+
+corrplot(C,method="ellipse",type="lower",diag=FALSE)
+
+glm1 = glm(Presence~JulianDay+NormTime+LunarIllum+as.factor(Year)+as.factor(DayPhase)
+           +as.factor(HATSite),family=binomial,data=thisSite)
+vif(glm1)
+
+```
+
+## Compare smooths & linears to null model for continuous covars 
+(from Benjamins '17)
+
+``` {r smooth vs lin}
+
+# Julian Day
+mod0 = geeglm(Presence~1,family=binomial,data=thisSite,id=GroupID,corstr="ar1")
+mod0a = geeglm(Presence~JulianDay,family=binomial,data=thisSite,id=GroupID,corstr="ar1")
+mod0b = geeglm(Presence~mSpline(JulianDay,
+                                knots=quantile(thisSite$JulianDay, probs=c(0.333,0.666)),
+                                Boundary.knots=c(1,365),
+                                periodic=T),
+               family=binomial,data=thisSite,id=GroupID,corstr="ar1")
+
+JulianDay = c("Null","Linear","Smooth")
+QICJ = c(QIC(mod0)[[1]],QIC(mod0a)[[1]],QIC(mod0b)[[1]])
+rbind(JulianDay,QICJ)
+
+# Normalized Time of Day
+mod0c = geeglm(Presence~NormTime,family=binomial,data=thisSite,id=GroupID,corstr="ar1")
+mod0d = geeglm(Presence~mSpline(NormTime,
+                                knots=quantile(thisSite$NormTime,probs=c(0.333,0.666)),
+                                Boundary.knots=c(-1,1)),
+               family=binomial,data=thisSite,id=GroupID,corstr="ar1")
+NormTime = c("Null","Linear","Smooth")
+QICN = c(QIC(mod0)[[1]],QIC(mod0c)[[1]],QIC(mod0d)[[1]])
+rbind(NormTime,QICN)
+
+# Lunar Illumination
+mod0e = geeglm(Presence~LunarIllum,family=binomial,data=thisSite,id=GroupID,corstr="ar1")
+mod0f = geeglm(Presence~mSpline(LunarIllum,
+                                knots=quantile(thisSite$LunarIllum,probs=c(0.333,0.666)),
+                                Boundary.knots=c(0,1)),
+               family=binomial,data=thisSite,id=GroupID,corstr="ar1")
+Lunar = c("Null","Linear","Smooth")
+QICL = c(QIC(mod0)[[1]],QIC(mod0e)[[1]],QIC(mod0f)[[1]])
+rbind(Lunar,QICL)
+
+````
+## Covar Selection
+
+Fit series of reduced models including all but one covar & use QIC to determine which covars to keep in model
+``` {r covar selection}
+# FullMod = geeglm(Presence~mSpline(JulianDay,
+#                                       knots=quantile(thisSite$JulianDay, probs=c(0.333,0.666)),
+#                                       Boundary.knots=c(1,365),
+#                                       periodic=T)
+#                      +mSpline(NormTime,
+#                               knots=quantile(thisSite$NormTime,probs=c(0.25,0.5,0.75)),
+#                               Boundary.knots=c(-1,1))
+#                      +mSpline(LunarIllum,
+#                               knots=)
+#                      +as.factor(Year),
+#                      +as.factor(DayPhase),
+#                      +as.factor(HATSite),
+#                      family=binomial,
+#                      data=thisSite,
+#                      id=reducedClustID,
+#                      corstr="ar1")
+
+CovSec1 = geeglm(Presence~mSpline(JulianDay,
+                                      knots=quantile(thisSite$JulianDay, probs=c(0.333,0.666)),
+                                      Boundary.knots=c(1,365),
+                                      periodic=T)
+                     +mSpline(LunarIllum,
+                              knots=quantile(thisSite$LunarIllum,probs=c(0.333,0.666)),
+                              Boundary.knots=c(0,1))
+                     +as.factor(Year)
+                     +as.factor(DayPhase),
+                     family=binomial,
+                     data=thisSite,
+                     id=GroupID,
+                     corstr="ar1")
+CovSec1a = geeglm(Presence~mSpline(LunarIllum,
+                              knots=quantile(thisSite$LunarIllum,probs=c(0.333,0.666)),
+                              Boundary.knots=c(0,1))
+                     +as.factor(Year)
+                     +as.factor(DayPhase),
+                     family=binomial,
+                     data=thisSite,
+                     id=GroupID,
+                     corstr="ar1")
+CovSec1b = geeglm(Presence~mSpline(JulianDay,
+                                      knots=quantile(thisSite$JulianDay, probs=c(0.333,0.666)),
+                                      Boundary.knots=c(1,365),
+                                      periodic=T)
+                     +as.factor(Year)
+                     +as.factor(DayPhase),
+                     family=binomial,
+                     data=thisSite,
+                     id=GroupID,
+                     corstr="ar1")
+CovSec1c = geeglm(Presence~mSpline(JulianDay,
+                                      knots=quantile(thisSite$JulianDay, probs=c(0.333,0.666)),
+                                      Boundary.knots=c(1,365),
+                                      periodic=T)
+                     +mSpline(LunarIllum,
+                              knots=quantile(thisSite$LunarIllum,probs=c(0.333,0.666)),
+                              Boundary.knots=c(0,1))
+                     +as.factor(DayPhase),
+                     family=binomial,
+                     data=thisSite,
+                     id=GroupID,
+                     corstr="ar1")
+CovSec1d = geeglm(Presence~mSpline(JulianDay,
+                                      knots=quantile(thisSite$JulianDay, probs=c(0.333,0.666)),
+                                      Boundary.knots=c(1,365),
+                                      periodic=T)
+                     +mSpline(LunarIllum,
+                              knots=quantile(thisSite$LunarIllum,probs=c(0.333,0.666)),
+                              Boundary.knots=c(0,1))
+                     +as.factor(Year),
+                     family=binomial,
+                     data=thisSite,
+                     id=GroupID,
+                     corstr="ar1")
+whichMiss = c("All In","MinusJDay","MinusLunIllum","MinusYear","MinusDayPhase")
+QIC_CovSec1 = c(QIC(CovSec1)[[1]],QIC(CovSec1a)[[1]],QIC(CovSec1b)[[1]],QIC(CovSec1c)[[1]],QIC(CovSec1d)[[1]])
+rbind(whichMiss,QIC_CovSec1)
+```
+### Construct Model
+
+Covars enter model in order determined by QIC score from above (the ones that, if removed, determine the biggest increase in QIC, enter the model first)
+Remove non-significant parameters from model
+
+```{r covar order}
+QIC_CovSec1[2:5] - QIC_CovSec1[1]
+```
+
+``` {r model construction}
+TryMod1 = geeglm(Presence~as.factor(Year)
+                      +mSpline(JulianDay,
+                                      knots=quantile(thisSite$JulianDay, probs=c(0.333,0.666)),
+                                      Boundary.knots=c(1,365),
+                                      periodic=T)
+                     +mSpline(LunarIllum,
+                              knots=quantile(thisSite$LunarIllum,probs=c(0.333,0.666)),
+                              Boundary.knots=c(0,1))
+                     +as.factor(DayPhase),
+                     family=binomial,
+                     data=thisSite,
+                     id=GroupID,
+                     corstr="ar1")
+signif = getPvalues(TryMod1)
+signif
+
+```
+### Final Model
+
+```{r final model}
+
+FinalMod = geeglm(Presence~mSpline(JulianDay,
+                                      knots=quantile(thisSite$JulianDay, probs=c(0.333,0.666)),
+                                      Boundary.knots=c(1,365),
+                                      periodic=T)
+                     +mSpline(LunarIllum,
+                              knots=quantile(thisSite$LunarIllum,probs=c(0.333,0.666)),
+                              Boundary.knots=c(0,1))
+                     +as.factor(Year)
+                     +as.factor(DayPhase),
+                     family=binomial,
+                     data=thisSite,
+                     id=GroupID,
+                     corstr="ar1")
+
+  sinkName = paste(seasDir,'/',CTname,'/',sites[j],"_",int,"_GEEGLMSummary.txt",sep="")
+  sink(sinkName)
+  getPvalues(FinalMod)
+  sink()
+```
+### Bootstrap CIs & Plot
+
+
+``` {r plot}
+
+# Bootstrap GEEGLM parameter estimates for later construction of confidence intervals
+  BootstrapParameters<-rmvnorm(10000, coef(modJday), summary(modJday)$cov.unscaled)
+  JDayBootstrapCoefs<- BootstrapParameters[,2:3]
+  YearBootstrapCoefs<- BootstrapParameters[,c(1,4:6)]
+  if (j==7){ # if HAT, get coefficients for Site
+    hatSiteBootstrapCoefs<- BootstrapParameters[,c(1,7)]
+    quant.func<- function(x){quantile(x, probs=c(0.025,0.975))}
+    cisH<-apply(hatSiteBootstrapCoefs, 2, quant.func)
+  }
+  
+  # Predict presence at each X value using model coefficients
+  if (j==7){ # if HAT, include Site as factor
+    Jx1<-model.matrix(modJday)[,2:3]%*%coef(modJday)[c(2:3)]
+    Jx2<-model.matrix(modJday)[,c(1,4:6)]%*%coef(modJday)[c(1,4:6)]
+    Jx3<-model.matrix(modJday)[,c(1,7)]%*%coef(modJday)[c(1,7)]
+  } else {
+    Jx1 = model.matrix(modJday)[,2:3]%*%coef(modJday)[c(2:3)]
+    Jx2 = model.matrix(modJday)[,c(1,4:6)]%*%coef(modJday)[c(1,4:6)]
+  }
+  
+  
+  # Plot GEEGLM partial residuals
+  # Julian Day
+  JDayForPlotting<- seq(min(Jday), max(Jday), length=256)
+  Basis<- mSpline(JDayForPlotting,  # spline spanning range of X values
+                  knots=quantile(Jday, probs=c(0.333,0.666)),
+                  Boundary.knots=c(1,365),
+                  periodic=T) # basis functions for smooth function
+  RealFit<- Basis%*%coef(modJday)[c(2:3)] # multiply basis functions by model coefficients to get values of spline at each X
+  RealFitCenterJ<- RealFit-mean(Jx1)-coef(modJday)[1] # adjust offset
+  JDayBootstrapFits<- Basis%*%t(JDayBootstrapCoefs) # get spread of spline values at each X based on distributions of each coefficient
+  quant.func<- function(x){quantile(x, probs=c(0.025,0.975))}
+  cisJ<-apply(JDayBootstrapFits, 1, quant.func) # confidence interval of smooth function estimate
+  Jcil<-cisJ[1,]-mean(Jx1)-coef(modJday)[1] # lowerCI bound
+  Jciu<-cisJ[2,]-mean(Jx1)-coef(modJday)[1] # upper CI bound
+  
+  
+  plotDF = data.frame(JDayForPlotting,RealFitCenterJ)
+  colnames(plotDF) = c("Jday","Fit")
+  dJday = stats::density(Jday,na.rm = TRUE,n=256,from=1,to=365) # Calculate kernel density of Jday observations
+  dens = data.frame(c(dJday$x,rev(dJday$x)),c(dJday$y,rep(0,length(dJday$y))))
+  colnames(dens) = c("Day","Density")
+  dens$Density = dens$Density/max(dens$Density) # normalize kernel density
+  if (min(Jcil)<0){ # set kernel density at bottom of y axis
+    dens$Density = dens$Density - abs(min(Jcil)) 
+  } else {
+    dens$Density = dens$Density + min(Jcil)
+  }
+  
+  #saveName = paste(seasDir,'/',CTname,'/',sites[j],"_",int,"_GEEGLM_JDayPlot.png",sep="")
+  JD = ggplot(plotDF, aes(Jday, Fit),
+  ) + geom_polygon(data=dens,
+                   aes(Day,Density),
+                   fill=4,
+                   alpha=0.2
+  ) + geom_smooth(fill = "grey",
+                  colour = "black",
+                  aes(ymin=Jcil, ymax=Jciu),
+                  stat ="identity"
+  ) + labs(x = "Julian Day",
+           y = "s(Julian Day)",
+           title = paste(CTname, 'at',sites[j]),
+  ) + theme(axis.line = element_line(),
+            panel.background = element_blank()
+  )
+  
+  ggsave(saveName,device="png")
+  while (dev.cur()>1) {dev.off()}
+  
+  
+  # Year (as boxplot)
+  # Center intercept (1st level of year factor) at 0 and show other levels relative to it
+  AdjustedYearCoefs = data.frame(c(YearBootstrapCoefs[,1]-mean(YearBootstrapCoefs[,1]),
+                                   YearBootstrapCoefs[,2],
+                                   YearBootstrapCoefs[,3],
+                                   YearBootstrapCoefs[,4]),
+                                 as.factor(rep(2016:2019,each=10000)))
+  colnames(AdjustedYearCoefs) = c("Coefficient","Year")
+  # AdjustedYearCoefs = apply(AdjustedYearCoefs,2,exp) return to units of response var?
+  
+  #saveName = paste(seasDir,'/',CTname,'/',sites[j],"_",int,"_GEEGLM_YearPlot.png",sep="")
+  Yr = ggplot(AdjustedYearCoefs,aes(Year,Coefficient)
+  ) + geom_boxplot(
+  )+ theme(axis.line = element_line(),
+           panel.background = element_blank()
+  ) + labs(title = paste(CTname, 'at',sites[j]))
+  ggsave(saveName,device="png")
+  while (dev.cur()>1) {dev.off()}
+
+```
+
