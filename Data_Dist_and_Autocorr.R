@@ -1,10 +1,10 @@
 library(pracma)
 library(stringr)
 
-inDir = 'I:/TimeSeries'
+inDir = 'I:/TimeSeries_ScaledByEffortError'
 distDir = 'I:/DataDists'
 corrDir = 'I:/Autocorrelation'
-int = 'Daily'
+int = 'Hourly'
 
 fileList = list.files(path=inDir,pattern=paste('*',int,'.csv',sep=""),
                       full.names=TRUE,recursive=FALSE,
@@ -44,14 +44,14 @@ for (i in 1:numel(fileList)){  # for each species' file
       saveName = paste(distDir,'/',CTname,'/',sites[j],"_",int,"_DataDist.png",sep="")
       png(saveName)
       hist(thisSite,main=paste(int,CTname,'at',sites[j]),xlab=c("Counts"))
-      dev.off()
+      while (dev.cur()>1) {dev.off()}
       
       # plot and save a plot of the autocorrelation
       saveName = paste(corrDir,'/',CTname,'/',sites[j],"_",int,"_Autocorr.png",sep="")
       png(saveName)
       acf(thisSite,lag.max=100,na.action=na.pass,
           main=paste(int,CTname,'at',sites[j]))
-      dev.off()
+      while (dev.cur()>1) {dev.off()}
       
     }  
     

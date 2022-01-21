@@ -1,6 +1,0 @@
-"0","# adapted from Benjamins '17 harbour porpoise paper (changed family to poisson, knots to fit range of Jday)"
-"0","# Note: intercept (first column of basis) is excluded"
-"0","knots = seq(1,365,length=6)"
-"0","var_covar_6 = gam(thisSite~s(Jday, bs=""cc"", k=6), fit=FALSE, family=poisson, "
-"0","                knots = list(knots))$X[,2:5]"
-"0","matplot(Jday, var_covar_6, type = ""p"", pch = '.', ylab = ""y"", main = ""variance-covariance cubic, k = 6"")"

@@ -1,5 +1,0 @@
-"0",""
-"0","# As it is in RC's GEEGLM"
-"0","knots = quantile(Jday, probs=c(0.333,0.666))"
-"0","Jday_mat3 = mSpline(Jday,knots = quantile(Jday,probs=c(0.333,0.666)),Boundary.knots=c(1,365),periodic=T)"
-"0","matplot(Jday, Jday_mat3, type = ""p"", pch = '.', ylab = ""y"", main = ""m-spline as in RC's GEEGLMs (no intercept, degree = 3?)"")"
