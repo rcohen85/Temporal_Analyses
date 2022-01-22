@@ -11,8 +11,7 @@ normTimeDir = 'I:/NormTimes'
 int = "5minBin"
 start = '2016-05-01 00:00:00'
 end = '2019-04-30 23:59:59'
-# goodIdx = c(1,2,4,8,11,13:19)
-goodIdx = c(8,11,13:19)
+goodIdx = c(1,2,4,8,11,13:19)
 goodSite = list(c(7,8:10),c(8:10),c(),c(1:8),c(),c(),c(),c(4,6:10),c(),c(),c(1:11),
                 c(),c(1:5),c(1:11),c(1:5),
                 c(1:11),c(1:8),c(1:11),c(1:7))
@@ -57,7 +56,7 @@ for (i in goodIdx){  # for each species' file
   } else if (int=="Hourly") {
     dateVec = as.POSIXlt(thisCT$Hour,format="%d-%b-%Y %H:%M:%S",tz="GMT")
   } else if (int=="5minBin") {
-    dateVec = as.POSIXlt(thisCT$Bin,format="%d-%b-%Y %H:%M:%S",tz="GMT")
+    dateVec = as.POSIXct(thisCT$Bin,format="%d-%b-%Y %H:%M:%S",tz="GMT")
   }
   
   for (j in unlist(goodSite[i])){ # for each site
@@ -156,9 +155,6 @@ for (i in goodIdx){  # for each species' file
         illum = getMoonIllumination(date=as.character(reducedDateVec),keep="fraction")
         illum = illum[,2]
         
-        # get lunar times
-        lunTime = getMoonTimes(date=as.character(reducedDateVec),lats[j],lons[j],keep=c("rise","set"))
-        
         # get day phase data
         dayData = getSunlightTimes(date=seq.Date(as.Date(dateStart),as.Date(dateEnd),by=1),
                                    lat=lats[j],lon=lons[j],
@@ -184,11 +180,62 @@ for (i in goodIdx){  # for each species' file
           master = cbind(Presence,as.character(reducedDateVec),reducedClustID,Jday,yearGroup,yrCode,normBinTimes,dayPhase,illum,hatSite)
           colnames(master) = c("Presence","TimeStamp","GroupID","JulianDay","Year","StudyYear","NormTime","DayPhase","LunarIllum","HATSite")
         }
-        
-        # save as a .csv
-        saveName = paste(tsDir,'/',CTname,'_at_',sites[j],"_",int,'_Master.csv',sep="")
-        write.csv(master,saveName,row.names=FALSE)
+        # 
+        # # save as a .csv
+        # saveName = paste(tsDir,'/',CTname,'_at_',sites[j],"_",int,'_Master.csv',sep="")
+        # write.csv(master,saveName,row.names=FALSE)
       #}
+        
+   ### Create separate data frames for modeling nighttime presence relative to lunar variables -----
+        
+      ## calculate proportion of each night with clicks
+        nightInd = which(dayPhase=='Night')
+        gaps = which(diff(nightInd,lag=1)>1)
+        nightEndInd = nightInd[gaps]
+        nightStInd = nightInd[gaps+1]
+        nightEndInd = nightEndInd[2:length(nightEndInd)]
+        nightEndInd = c(nightEndInd,nightInd[length(nightInd)])
+        nightBins = as.POSIXct(c(t(cbind(reducedDateVec[nightStInd],reducedDateVec[nightEndInd]))),tz="GMT",origin="1970-01-01")
+        
+        whichNight = histc(as.numeric(reducedDateVec),as.numeric(nightBins))
+        # get number of bins in each night
+        nightBinCounts = whichNight$cnt[seq(1,length(whichNight$cnt),by=2)] 
+        
+        # count how many bins each night have presence
+        nightDF = data.frame(Bin=unlist(whichNight$bin),Pres=Presence)
+        nightPres = nightDF %>% 
+          group_by(Bin) %>%
+          summarise(numBins = sum(Pres))
+        if (nightPres$Bin[1]==0){
+          nightPres = nightPres[2:dim(nightPres)[1],]
+        }
+        nightPres = nightPres[seq(1,length(nightPres$Bin),b=2),]
+        # divide # presence bins by # bins in each night
+        nightPresProp = nightPres$numBins/nightBinCounts
+        
+        # calculate average lunar illuminance each night
+        
+        # get times when moon is up
+        lunTime = getMoonTimes(date=seq.Date(as.Date(dateStart),as.Date(dateEnd+(60*60*24)),by=1),
+                               lat=lats[j],lon=lons[j],
+                               keep=c("rise","set"),
+                               tz="UTC")
+        lunR = lunTime[,4]; lunR = lunR[is.na(lunR)==0]
+        lunS = lunTime[,5]; lunS = lunS[is.na(lunS)==0]
+        lunS = lunS[2:length(lunS)]
+        
+        moonBins = as.POSIXlt(c(t(cbind(lunR,lunS))),tz="GMT",origin="1970-01-01")
+        tooLate = which(moonBins>=dateEnd)
+        if (!is.empty(tooLate)){
+          moonBins = moonBins[-tooLate]
+          moonBins = c(moonBins,endDate)}
+        
+        # calculate proportion of each night moon is up
+        moonX = histc(as.numeric(reducedDateVec),as.numeric(moonBins))
+        
+
+        
+        
     }
     
   }
