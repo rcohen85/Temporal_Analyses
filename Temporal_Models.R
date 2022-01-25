@@ -20,93 +20,106 @@ int = "5minBin"
 dfList = list.files(path=modelDFDir,pattern=paste('*Master.csv',sep=""),
                     full.names=TRUE,recursive=FALSE,
                     include.dirs=FALSE,no..=TRUE)
-
+# lunList = list.files(path=modelDFDir,pattern=paste('*MasterLun.csv',sep=""),
+#                      full.names=TRUE,recursive=FALSE,
+#                      include.dirs=FALSE,no..=TRUE)
 
 #### EXPLORE SPLINE FITS ---------------------------------
 
-# numKnots_QIC_Comp = data.frame(LunLin=as.numeric(),
-#                                Lun4=as.numeric(),
-#                                Lun5=as.numeric(),
-#                                JD4=as.numeric(),
-#                                JD5=as.numeric())
-# for (i in 1:numel(dfList)){ 
-#   
+# LunKnots_QIC_Comp = data.frame(LunIllumLin=as.numeric(),
+#                                LunIllum3=as.numeric(),
+#                                LunIllum4=as.numeric(),
+#                                MoonPropLin=as.numeric(),
+#                                MoonProp3=as.numeric(),
+#                                MoonProp4=as.numeric())
+# for (i in 1:numel(lunList)){
+# 
 #   # load file
-#   thisSite = data.frame(read.csv(dfList[i]))
+#   masterLun = data.frame(read.csv(lunList[i]))
 #   CTname = str_remove(dfList[i],paste(modelDFDir,'/',sep="")) # get the species/CT name
-#   site = str_remove(CTname,paste("_",int,"_Master.csv",sep=""))
+#   site = str_remove(CTname,paste("_",int,"_MasterLun.csv",sep=""))
 #   site = sub(".*_","",site)
 #   CTname = sub("_.*","",CTname)
 #   if (str_detect(CTname,"Atl")){
 #     CTname = "Gervais"
 #   }
 #   
+#   # Round Proportion of Presence to get it Poisson distributed
+#   masterLun$PropPres = round(masterLun$PropPres*100,digits=0)
+#   
+#   # Determine autocorrelation and create grouping variable for GEEGLM
+#       corr = acf(masterLun$PropPres,lag.max=90,na.action=na.exclude,plot=FALSE)
+#       lagID = which(abs(corr$acf)<0.2) # determine lag at which autocorrelation is <0.2
+#       numClust = ceiling(length(masterLun$PropPres)/(lagID[1]-1))
+#       if (numClust<length(masterLun$PropPres)){
+#         clustID = rep(1:numClust,each=lagID[1])
+#         clustID = clustID[1:length(masterLun$PropPres)]
+#       } else {
+#         clustID = 1:length(masterLun$PropPres)
+#       }
+# 
+#       masterLun$GroupID = clustID
+# 
 #   # if it doesn't already exist, create directory to save figures
 #   if (!dir.exists(paste(outDir,'/',CTname,sep=""))){
 #     dir.create(paste(outDir,'/',CTname,sep=""))
 #   }
-#   
-#   # # Fit GAM
-#   # if (j==7){
-#   #   JDayGAM = gam(thisSite~s(Jday,bs="cc",k=6)+as.factor(yearGroup)+as.factor(hatSite),
-#   #                 family=tw)
-#   # } else {JDayGAM = gam(thisSite~s(Jday,bs="cc",k=6)+as.factor(yearGroup),
-#   #               family=tw)}
-#   # sinkName = paste(seasDir,'/',CTname,'/',sites[j],"_",int,"_GAMSummary.txt",sep="")
-#   # sink(sinkName)
-#   # print(summary(JDayGAM))
-#   # sink()
-#   # 
-#   # # Plot GAM partial residuals
-#   # saveName = paste(seasDir,'/',CTname,'/',sites[j],"_",int,"_GAM.png",sep="")
-#   # if (j==7){
-#   #   png(saveName,width=800,height=500)
-#   # } else {
-#   #   png(saveName,width=800,height=400)
-#   # }
-#   # 
-#   # plot.gam(JDayGAM,all.terms=TRUE,pages=1,main=paste(CTname,'at',sites[j]))
-#   # while (dev.cur()>1) {dev.off()}
-#   
-#   
-#   knots = list(c(0.333,0.666),c(0.275,0.5,0.725))
+# 
+#   # knots = list(c(0.333,0.666),c(0.275,0.5,0.725))
+#   knots = list(c(0.5),c(0.333,0.666))
 #   # Test whether to include Lunar Illuminance as a linear or a smooth term:
-#   mod01 = geeglm(Presence~LunarIllum,family=binomial,data=thisSite,id=GroupID,corstr="ar1")
-#   mod02 = geeglm(Presence~mSpline(LunarIllum,
-#                                   knots=quantile(thisSite$LunarIllum,probs=unlist(knots[1])),
+#   mod01 = geeglm(PropPres~AvgLunIllum,family=poisson,data=masterLun,id=GroupID,corstr="ar1")
+#   mod02 = geeglm(PropPres~mSpline(AvgLunIllum,
+#                                   knots=quantile(masterLun$AvgLunIllum,probs=unlist(knots[1])),
 #                                   Boundary.knots=c(0,1)),
-#                  family=binomial,data=thisSite,id=GroupID,corstr="ar1")
-#   mod03 = geeglm(Presence~mSpline(LunarIllum,
-#                                   knots=quantile(thisSite$LunarIllum,probs=unlist(knots[2])),
+#                  family=poisson,data=masterLun,id=GroupID,corstr="ar1")
+#   mod03 = geeglm(PropPres~mSpline(AvgLunIllum,
+#                                   knots=quantile(masterLun$AvgLunIllum,probs=unlist(knots[2])),
 #                                   Boundary.knots=c(0,1)),
-#                  family=binomial,data=thisSite,id=GroupID,corstr="ar1")
-#   QICLun = c(QIC(mod01)[[1]],QIC(mod02)[[1]],QIC(mod03)[[1]])
+#                  family=poisson,data=masterLun,id=GroupID,corstr="ar1")
+#   QICLunIllum = c(QIC(mod01)[[1]],QIC(mod02)[[1]],QIC(mod03)[[1]])
 #   # QICLun = c(QIC(mod01)[[1]],QIC(mod02)[[1]])
 #   
-#   # Test how many knots to use for Julian Day (not doing linear cause it should be cyclic)
-#   mod04 = geeglm(Presence~mSpline(JulianDay,
-#                                   knots=quantile(thisSite$JulianDay, probs=unlist(knots[1])),
-#                                   Boundary.knots=c(1,365),
-#                                   periodic=T),
-#                  family=binomial,data=thisSite,id=GroupID,corstr="ar1")
-#   mod05 = geeglm(Presence~mSpline(JulianDay,
-#                                   knots=quantile(thisSite$JulianDay, probs=unlist(knots[2])),
-#                                   Boundary.knots=c(1,365),
-#                                   periodic=T),
-#                  family=binomial,data=thisSite,id=GroupID,corstr="ar1")
-#   QICJD = c(QIC(mod04)[[1]],QIC(mod05)[[1]])
-#   
-#   
-#   numKnots_QIC_Comp[i,] = cbind(QIC(mod01)[[1]],QIC(mod02)[[1]],QIC(mod03)[[1]],
-#                        QIC(mod04)[[1]],QIC(mod05)[[1]])
-#   
+#   mod04 = geeglm(PropPres~PropMoonUp,family=poisson,data=masterLun,id=GroupID,corstr="ar1")
+#   mod05 = geeglm(PropPres~mSpline(PropMoonUp,
+#                                   knots=quantile(masterLun$PropMoonUp,probs=unlist(knots[1])),
+#                                   Boundary.knots=c(0,1)),
+#                  family=poisson,data=masterLun,id=GroupID,corstr="ar1")
+#   mod06 = geeglm(PropPres~mSpline(PropMoonUp,
+#                                   knots=quantile(masterLun$PropMoonUp,probs=unlist(knots[2])),
+#                                   Boundary.knots=c(0,1)),
+#                  family=poisson,data=masterLun,id=GroupID,corstr="ar1")
+#   QICPropMoonUp = c(QIC(mod04)[[1]],QIC(mod05)[[1]],QIC(mod06)[[1]])
+# 
+#   # # Test how many knots to use for Julian Day (not doing linear cause it should be cyclic)
+#   # mod04 = geeglm(Presence~mSpline(JulianDay,
+#   #                                 knots=quantile(thisSite$JulianDay, probs=unlist(knots[1])),
+#   #                                 Boundary.knots=c(1,365),
+#   #                                 periodic=T),
+#   #                family=binomial,data=thisSite,id=GroupID,corstr="ar1")
+#   # mod05 = geeglm(Presence~mSpline(JulianDay,
+#   #                                 knots=quantile(thisSite$JulianDay, probs=unlist(knots[2])),
+#   #                                 Boundary.knots=c(1,365),
+#   #                                 periodic=T),
+#   #                family=binomial,data=thisSite,id=GroupID,corstr="ar1")
+#   # QICJD = c(QIC(mod04)[[1]],QIC(mod05)[[1]])
+#   # 
+#   # 
+#   # numKnots_QIC_Comp[i,] = cbind(QIC(mod01)[[1]],QIC(mod02)[[1]],QIC(mod03)[[1]],
+#   #                      QIC(mod04)[[1]],QIC(mod05)[[1]])
+#   LunKnots_QIC_Comp[i,] = cbind(QIC(mod01)[[1]],QIC(mod02)[[1]],QIC(mod03)[[1]],
+#                        QIC(mod04)[[1]],QIC(mod05)[[1]],QIC(mod06)[[1]])
+# 
 # }
 # 
-# BestLun = data.frame(colnames(numKnots)[unlist(data.frame(apply(numKnots[,1:3],1,which.min)))])
-# colnames(BestLun) = "BestModel"
-# BestJD = data.frame(colnames(numKnots)[unlist(data.frame(apply(numKnots[,4:5],1,which.min)))+3])
-# colnames(BestJD) = "BestModel"
-# save(dfList,numKnots_QIC_Comp,BestLun,BestJD,file=paste(outDir,"/SmoothFitEval.Rdata",sep=""))
+# BestLunIllum = data.frame(colnames(LunKnots_QIC_Comp)[unlist(data.frame(apply(LunKnots_QIC_Comp[,1:3],1,which.min)))])
+# colnames(BestLunIllum) = "BestModel"
+# BestMoonPropUp = data.frame(colnames(LunKnots_QIC_Comp)[(unlist(data.frame(apply(LunKnots_QIC_Comp[,4:5],1,which.min))))+3])
+# colnames(BestMoonPropUp) = "BestModel"
+# # BestJD = data.frame(colnames(numKnots)[unlist(data.frame(apply(numKnots[,4:5],1,which.min)))+3])
+# # colnames(BestJD) = "BestModel"
+# # save(dfList,numKnots_QIC_Comp,BestLun,BestJD,file=paste(outDir,"/SmoothFitEval.Rdata",sep=""))
+# save(dfList,LunKnots_QIC_Comp,BestLunIllum,BestMoonPropUp,file=paste(outDir,"/SmoothFitEval_Lun.Rdata",sep=""))
 
 
 # ##### CREATE MODELS (JD, LunIllum, Year) --------------------------
@@ -187,34 +200,37 @@ for (i in 1:numel(dfList)){
     CTname = "Gervais"
   }
   
-  # Find nighttime data
-  nightInd = which(thisSite$DayPhase=='Night')
-  gaps = which(diff(nightInd,lag=1)>1)
-  nightEnd = nightInd[gaps]
-  nightSt = nightInd[gaps+1]
-  nightEnd = nightEnd[2:length(nightEnd)]
-  nightEnd = c(nightEnd,nightInd[length(nightInd)])
-  
-  # calculate proportion of each night w clicks
-  
-  # calculate proportion of each night w moon
-  
-  # calculate average lunar illuminance each night
-  
-  # make data frame for modeling
-
   
   # Fit GEEGLM:
   
-  tempMod = geeglm(Presence~mSpline(JulianDay,
-                                    knots=quantile(JulianDay,probs=c(0.275,0.5,0.725)),
-                                    Boundary.knots=c(1,365),
-                                    periodic=T)
-                   +as.factor(StudyYear),
-                   family=binomial,
-                   data=thisSite,
-                   id=GroupID,
-                   corstr="ar1")
+  if (site=="HAT"){ # for HAT, only model 2017-2019
+    startInd = which(thisSite$StudyYear>1)
+    thisSiteTruncated = thisSite[startInd,]
+    
+    tempMod = geeglm(Presence~mSpline(JulianDay,
+                                      knots=quantile(JulianDay,probs=c(0.275,0.5,0.725)),
+                                      Boundary.knots=c(1,365),
+                                      periodic=T)
+                     +as.factor(StudyYear),
+                     family=binomial,
+                     data=thisSiteTruncated,
+                     id=GroupID,
+                     corstr="ar1")
+    
+  } else {
+    
+    tempMod = geeglm(Presence~mSpline(JulianDay,
+                                      knots=quantile(JulianDay,probs=c(0.275,0.5,0.725)),
+                                      Boundary.knots=c(1,365),
+                                      periodic=T)
+                     +as.factor(StudyYear),
+                     family=binomial,
+                     data=thisSite,
+                     id=GroupID,
+                     corstr="ar1")
+    }
+  
+  
   
   PV = getPvalues(tempMod)
   sinkName = paste(outDir,'/',CTname,'/',site,"_",int,"_GEEGLMSummary_JDYr.txt",sep="")
@@ -223,14 +239,9 @@ for (i in 1:numel(dfList)){
   sink()
   
   save(tempMod,PV,file=paste(outDir,'/',CTname,'/',site,"_",int,"_Model_JDYr.Rdata",sep=""))
-}
-
-##### CREATE MODELS (LunIllum) ------------------------------------
-
-for (i in 1:numel(dfList)){
   
-  # load file
-  thisSite = data.frame(read.csv(dfList[i]))
+  ### Lunar Models
+  masterLun = data.frame(read.csv(dfList[i]))
   CTname = str_remove(dfList[i],paste(modelDFDir,'/',sep="")) # get the species/CT name
   site = str_remove(CTname,paste("_",int,"_Master.csv",sep=""))
   site = sub(".*_","",site)
@@ -239,28 +250,94 @@ for (i in 1:numel(dfList)){
     CTname = "Gervais"
   }
   
+  # Round Proportion of Presence to get it Poisson distributed
+  masterLun$PropPres = round(masterLun$PropPres*100,digits=0)
   
+  # Determine autocorrelation and create grouping variable for GEEGLM
+  corr = acf(masterLun$PropPres,lag.max=60,na.action=na.exclude,plot=FALSE)
+  lagID = which(abs(corr$acf)<0.2) # determine lag at which autocorrelation is <0.2
+  numClust = ceiling(length(masterLun$PropPres)/(lagID[1]-1))
+  if (numClust<length(masterLun$PropPres)){
+    clustID = rep(1:numClust,each=lagID[1])
+    clustID = clustID[1:length(masterLun$PropPres)]
+  } else {
+    clustID = 1:length(masterLun$PropPres)
+  }
+  masterLun$GroupID = clustID
   
   # Fit GEEGLM:
+  if (site=="HAT"){
+    startInd = which(masterLun$NightStart>=as.POSIXct('2017-05-01 00:00:00',format="%Y-%m-%d %H:%M:%S",tz="GMT"))
+    masterLunTruncated = masterLun[startInd,]
+    
+    lunMod = geeglm(PropPres~mSpline(AvgLunIllum,
+                                     knots=quantile(AvgLunIllum,probs=c(0.333,0.666)),
+                                     Boundary.knots=c(0,1))
+                    +mSpline(PropMoonUp,
+                             knots=quantile(AvgLunIllum,probs=c(0.5)),
+                             Boundary.knots=c(0,1)),
+                    family=poisson,
+                    data=masterLunTruncated,
+                    id=GroupID,
+                    corstr="ar1")
+  } else {
+    lunMod = geeglm(PropPres~mSpline(AvgLunIllum,
+                                     knots=quantile(AvgLunIllum,probs=c(0.333,0.666)),
+                                     Boundary.knots=c(0,1))
+                    +mSpline(PropMoonUp,
+                             knots=quantile(AvgLunIllum,probs=c(0.5)),
+                             Boundary.knots=c(0,1)),
+                    family=poisson,
+                    data=masterLun,
+                    id=GroupID,
+                    corstr="ar1")
+    }
   
-  tempMod = geeglm(Presence~mSpline(JulianDay,
-                                    knots=quantile(JulianDay,probs=c(0.275,0.5,0.725)),
-                                    Boundary.knots=c(1,365),
-                                    periodic=T)
-                   +as.factor(StudyYear),
-                   family=binomial,
-                   data=thisSite,
-                   id=GroupID,
-                   corstr="ar1")
-  
-  PV = getPvalues(tempMod)
-  sinkName = paste(outDir,'/',CTname,'/',site,"_",int,"_GEEGLMSummary_JDYr.txt",sep="")
+  LunPV = getPvalues(lunMod)
+  sinkName = paste(outDir,'/',CTname,'/',site,"_",int,"_GEEGLMSummary_Lun.txt",sep="")
   sink(sinkName)
-  print(PV)
+  print(LunPV)
   sink()
+  save(lunMod,LunPV,file=paste(outDir,'/',CTname,'/',site,"_",int,"_Model_Lun.Rdata",sep=""))
   
-  save(tempMod,PV,file=paste(outDir,'/',CTname,'/',site,"_",int,"_Model_JDYr.Rdata",sep=""))
 }
+
+##### CREATE MODELS (LunIllum) ------------------------------------
+
+# for (i in 1:numel(dfList)){
+#   
+#   # load file
+#   thisSite = data.frame(read.csv(dfList[i]))
+#   CTname = str_remove(dfList[i],paste(modelDFDir,'/',sep="")) # get the species/CT name
+#   site = str_remove(CTname,paste("_",int,"_Master.csv",sep=""))
+#   site = sub(".*_","",site)
+#   CTname = sub("_.*","",CTname)
+#   if (str_detect(CTname,"Atl")){
+#     CTname = "Gervais"
+#   }
+#   
+#   
+#   
+#   # Fit GEEGLM:
+#   
+#   tempMod = geeglm(Presence~mSpline(JulianDay,
+#                                     knots=quantile(JulianDay,probs=c(0.275,0.5,0.725)),
+#                                     Boundary.knots=c(1,365),
+#                                     periodic=T)
+#                    +as.factor(StudyYear),
+#                    family=binomial,
+#                    data=thisSite,
+#                    id=GroupID,
+#                    corstr="ar1")
+#   
+#   PV = getPvalues(tempMod)
+#   sinkName = paste(outDir,'/',CTname,'/',site,"_",int,"_GEEGLMSummary_JDYr.txt",sep="")
+#   sink(sinkName)
+#   print(PV)
+#   sink()
+#   
+#   save(tempMod,PV,file=paste(outDir,'/',CTname,'/',site,"_",int,"_Model_JDYr.Rdata",sep=""))
+# }
 
 
 # #### PLOT ALL MODELS FOR A GIVEN SPECIES --------------------------------------
@@ -536,76 +613,76 @@ for (i in 1:numel(dfList)){
 #     ggsave(saveName,device="pdf", width=2, scale=3, height=0.75, units="in",dpi=600)
 #     while (dev.cur()>1) {dev.off()}
 
-    # assign(paste("Yr_",j,sep=""),Yr)
-    # YrList = c(YrList,assign(paste("Yr_",j,sep=""),Yr))
+# assign(paste("Yr_",j,sep=""),Yr)
+# YrList = c(YrList,assign(paste("Yr_",j,sep=""),Yr))
 
-    ## Day Phase (as boxplot) -----------------------------
-    # # Center intercept (1st level of day phase factor) at 0 and show other levels relative to it
-    # AdjustedPhsCoefs = data.frame(c(PhsBootstrapCoefs[,1]-mean(PhsBootstrapCoefs[,1]),
-    #                                 PhsBootstrapCoefs[,2],
-    #                                 PhsBootstrapCoefs[,3],
-    #                                 PhsBootstrapCoefs[,4]),
-    #                                as.factor(rep(c("Dawn","Day","Dusk","Night"),each=10000)))
-    # colnames(AdjustedPhsCoefs) = c("Coefficient","Phase")
-    # # AdjustedPhsCoefs = apply(AdjustedPhsCoefs,2,exp) return to units of response var?
-    #
-    # # calculate quantiles for plotting limits
-    # quants = AdjustedPhsCoefs %>%
-    #   group_by(Phase) %>%
-    #   summarize(q25 = quantile(Coefficient,probs=0.25),
-    #             q75 = quantile(Coefficient,probs=0.75))
-    # iqr = quants$q75-quants$q25
-    #
-    # #saveName = paste(seasDir,'/',CTname,'/',sites[j],"_",int,"_GEEGLM_YearPlot.png",sep="")
-    # Phs = ggplot(AdjustedPhsCoefs,aes(Phase,Coefficient)
-    # ) + geom_boxplot(outlier.shape=NA
-    # )+ coord_cartesian(ylim = c(min(quants$q25-(1.75*max(iqr))),(1.75*max(iqr))+max(quants$q75))
-    # )+ theme(axis.line = element_line(),
-    #          panel.background = element_blank()
-    # )# + labs(title = paste(CTname, 'at',site))
-    # # ggsave(saveName,device="png")
-    # # while (dev.cur()>1) {dev.off()}
+## Day Phase (as boxplot) -----------------------------
+# # Center intercept (1st level of day phase factor) at 0 and show other levels relative to it
+# AdjustedPhsCoefs = data.frame(c(PhsBootstrapCoefs[,1]-mean(PhsBootstrapCoefs[,1]),
+#                                 PhsBootstrapCoefs[,2],
+#                                 PhsBootstrapCoefs[,3],
+#                                 PhsBootstrapCoefs[,4]),
+#                                as.factor(rep(c("Dawn","Day","Dusk","Night"),each=10000)))
+# colnames(AdjustedPhsCoefs) = c("Coefficient","Phase")
+# # AdjustedPhsCoefs = apply(AdjustedPhsCoefs,2,exp) return to units of response var?
+#
+# # calculate quantiles for plotting limits
+# quants = AdjustedPhsCoefs %>%
+#   group_by(Phase) %>%
+#   summarize(q25 = quantile(Coefficient,probs=0.25),
+#             q75 = quantile(Coefficient,probs=0.75))
+# iqr = quants$q75-quants$q25
+#
+# #saveName = paste(seasDir,'/',CTname,'/',sites[j],"_",int,"_GEEGLM_YearPlot.png",sep="")
+# Phs = ggplot(AdjustedPhsCoefs,aes(Phase,Coefficient)
+# ) + geom_boxplot(outlier.shape=NA
+# )+ coord_cartesian(ylim = c(min(quants$q25-(1.75*max(iqr))),(1.75*max(iqr))+max(quants$q75))
+# )+ theme(axis.line = element_line(),
+#          panel.background = element_blank()
+# )# + labs(title = paste(CTname, 'at',site))
+# # ggsave(saveName,device="png")
+# # while (dev.cur()>1) {dev.off()}
 
-    # # Site (as boxplot), if HAT
-    # if (j==7){
-    #   AdjustedHATCoefs = data.frame(c(hatSiteBootstrapCoefs[,1]-mean(hatSiteBootstrapCoefs[,1]),
-    #                                   hatSiteBootstrapCoefs[,2]),
-    #                                 as.factor(rep(c("HAT_A","HAT_B"),each=10000)))
-    #   colnames(AdjustedHATCoefs) = c("Coefficient","Site")
-    #
-    #   saveName = paste(seasDir,'/',CTname,'/',sites[j],"_",int,"_GEEGLM_HATSitePlot.png",sep="")
-    #   ggplot(AdjustedHATCoefs,aes(Site,Coefficient)
-    #   ) + geom_boxplot(
-    #   )+ theme(axis.line = element_line(),
-    #            panel.background = element_blank()
-    #   )+labs(title = paste(CTname, 'at',sites[j]))
-    #   ggsave(saveName,device="png")
-    #   while (dev.cur()>1) {dev.off()}
-    #
-    # }
+# # Site (as boxplot), if HAT
+# if (j==7){
+#   AdjustedHATCoefs = data.frame(c(hatSiteBootstrapCoefs[,1]-mean(hatSiteBootstrapCoefs[,1]),
+#                                   hatSiteBootstrapCoefs[,2]),
+#                                 as.factor(rep(c("HAT_A","HAT_B"),each=10000)))
+#   colnames(AdjustedHATCoefs) = c("Coefficient","Site")
+#
+#   saveName = paste(seasDir,'/',CTname,'/',sites[j],"_",int,"_GEEGLM_HATSitePlot.png",sep="")
+#   ggplot(AdjustedHATCoefs,aes(Site,Coefficient)
+#   ) + geom_boxplot(
+#   )+ theme(axis.line = element_line(),
+#            panel.background = element_blank()
+#   )+labs(title = paste(CTname, 'at',sites[j]))
+#   ggsave(saveName,device="png")
+#   while (dev.cur()>1) {dev.off()}
+#
+# }
 
- # }
+# }
 
 
 #### ARRANGE PLOTS AND SAVE ---------------------
 
-  # JD + LunIllum + Yr + Phs +plot_annotation(
-  #   title=paste(CTname, 'at',site)
-  # )
+# JD + LunIllum + Yr + Phs +plot_annotation(
+#   title=paste(CTname, 'at',site)
+# )
 
-  # JD / LunIllum + plot_annotation(
-  #   title=paste(CTname, 'at',site)
-  # )
-  # saveName = paste(outDir,'/',CTname,'/',site,"_",int,"_GEEGLM_SmoothPlots.png",sep="")
-  #   ggsave(saveName,device="png")
-  #   while (dev.cur()>1) {dev.off()}
-  #
-  #   Yr + plot_annotation(
-  #     title=paste(CTname, 'at',site)
-  #   )
-  #   saveName = paste(outDir,'/',CTname,'/',site,"_",int,"_GEEGLM_YearPlots.png",sep="")
-  #   ggsave(saveName,device="png")
-  #   while (dev.cur()>1) {dev.off()}
+# JD / LunIllum + plot_annotation(
+#   title=paste(CTname, 'at',site)
+# )
+# saveName = paste(outDir,'/',CTname,'/',site,"_",int,"_GEEGLM_SmoothPlots.png",sep="")
+#   ggsave(saveName,device="png")
+#   while (dev.cur()>1) {dev.off()}
+#
+#   Yr + plot_annotation(
+#     title=paste(CTname, 'at',site)
+#   )
+#   saveName = paste(outDir,'/',CTname,'/',site,"_",int,"_GEEGLM_YearPlots.png",sep="")
+#   ggsave(saveName,device="png")
+#   while (dev.cur()>1) {dev.off()}
 
 # JD_1 / JD_2 / JD_3
 #
@@ -614,4 +691,28 @@ for (i in 1:numel(dfList)){
 #   wrap_plots(YrList,ncol=1)
 
 
- # }
+# }
+
+
+### Old Code ---------------------------------------------------------------------------
+# # Fit GAM
+# if (j==7){
+#   JDayGAM = gam(thisSite~s(Jday,bs="cc",k=6)+as.factor(yearGroup)+as.factor(hatSite),
+#                 family=tw)
+# } else {JDayGAM = gam(thisSite~s(Jday,bs="cc",k=6)+as.factor(yearGroup),
+#               family=tw)}
+# sinkName = paste(seasDir,'/',CTname,'/',sites[j],"_",int,"_GAMSummary.txt",sep="")
+# sink(sinkName)
+# print(summary(JDayGAM))
+# sink()
+#
+# # Plot GAM partial residuals
+# saveName = paste(seasDir,'/',CTname,'/',sites[j],"_",int,"_GAM.png",sep="")
+# if (j==7){
+#   png(saveName,width=800,height=500)
+# } else {
+#   png(saveName,width=800,height=400)
+# }
+#
+# plot.gam(JDayGAM,all.terms=TRUE,pages=1,main=paste(CTname,'at',sites[j]))
+# while (dev.cur()>1) {dev.off()}
