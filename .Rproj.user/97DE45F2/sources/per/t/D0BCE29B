@@ -1,0 +1,26 @@
+{
+    "id": "D0BCE29B",
+    "path": "D:/Code/Temporal_Analyses/Temporal_Models.R",
+    "project_path": "Temporal_Models.R",
+    "type": "r_source",
+    "hash": "3568830118",
+    "contents": "",
+    "dirty": false,
+    "created": 1643059393228.0,
+    "source_on_save": false,
+    "relative_order": 1,
+    "properties": {
+        "source_window_id": "",
+        "Source": "Source",
+        "cursorPosition": "249,22",
+        "scrollLine": "231"
+    },
+    "folds": "26|25|123|0|\n124|43|187|0|\n696|13|718|0|\n",
+    "lastKnownWriteTime": 1643071768,
+    "encoding": "UTF-8",
+    "collab_server": "",
+    "source_window": "",
+    "last_content_update": 1643071768499,
+    "read_only": false,
+    "read_only_alternatives": []
+}
