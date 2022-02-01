@@ -39,6 +39,9 @@ tsFileList = list.files(path=tsDir,pattern=paste('*_',int,'.csv',sep=""),
 normTimeFileList = list.files(path=normTimeDir,pattern='*.csv',
                               full.names=TRUE,recursive=FALSE,
                               include.dirs=FALSE,no..=TRUE)
+lunFileList = list.files(path=illumDir,pattern='*.csv',
+                         full.names=TRUE,recursive=FALSE,
+                         include.dirs=FALSE,no..=TRUE)
 
 for (i in goodIdx){  # for each species' file
   
@@ -190,89 +193,6 @@ for (i in goodIdx){  # for each species' file
       
       ### Create separate data frames for modeling nighttime presence relative to lunar variables -----
       
-      # ## calculate proportion of each night with clicks
-      # nightInd = which(dayPhase=='Night')
-      # gaps = which(diff(nightInd,lag=1)>1)
-      # nightEndInd = nightInd[gaps]
-      # nightStInd = nightInd[gaps+1]
-      # nightEndInd = nightEndInd[2:length(nightEndInd)] # data starts during nighttime, incomplete data for that night
-      # nightEndInd = c(nightEndInd,nightInd[length(nightInd)])
-      # nightSt = reducedDateVec[nightStInd]
-      # nightEnd = reducedDateVec[nightEndInd]
-      # nightBins = as.POSIXct(c(t(cbind(nightSt,nightEnd))),tz="GMT",origin="1970-01-01")
-      # # find which 5-min bins fall into each night & day
-      # whichNight = histc(as.numeric(reducedDateVec),as.numeric(nightBins))
-      # # tally number of bins in each night (odd bins are night, even are day)
-      # nightBinCounts = whichNight$cnt[seq(1,length(whichNight$cnt),by=2)] 
-      # 
-      # # count how many bins each night have presence
-      # nightDF = data.frame(Bin=unlist(whichNight$bin),Pres=Presence)
-      # nightPres = nightDF %>% 
-      #   group_by(Bin) %>%
-      #   summarise(numBins = sum(Pres))
-      # if (nightPres$Bin[1]==0){ # get rid of bins that didn't fall into a full night
-      #   nightPres = nightPres[2:dim(nightPres)[1],]
-      # }
-      # nightPres = nightPres[seq(1,dim(nightPres)[1],b=2),] # odd bins are night, even are day
-      # # divide # presence bins by # bins in each night
-      # nightPresProp = nightPres$numBins/nightBinCounts
-      # 
-      # # calculate average lunar illuminance each night
-      # illumDF = data.frame(Bin=unlist(whichNight$bin),Illum=illum)
-      # nightIllum = illumDF %>%
-      #   group_by(Bin) %>%
-      #   summarise(avgIllum = mean(Illum))
-      # if (nightIllum$Bin[1]==0){
-      #   nightIllum = nightIllum[2:dim(nightIllum)[1],]
-      # }
-      # nightIllum = nightIllum[seq(1,dim(nightIllum)[1],by=2),]
-      # 
-      # # get times when moon is up
-      # lunTime = getMoonTimes(date=seq.Date(as.Date(dateStart),as.Date(dateEnd+(60*60*24)),by=1),
-      #                        lat=lats[j],lon=lons[j],
-      #                        keep=c("rise","set"),
-      #                        tz="UTC")
-      # lunR = lunTime[,4]; lunR = lunR[is.na(lunR)==0] # some NAs showing up, get rid of them
-      # lunS = lunTime[,5]; lunS = lunS[is.na(lunS)==0]
-      # moonBins = as.POSIXlt(sort(cbind(lunR,lunS)),tz="GMT",origin="1970-01-01")# moon rise/set bins
-      # firstRise = which(moonBins==lunR[1]) # want to start with moon rise
-      # moonBins = moonBins[firstRise:length(moonBins),]
-      # 
-      # tooLate = which(moonBins>=dateEnd) # don't go beyond study end date
-      # if (!is.empty(tooLate)){
-      #   moonBins = moonBins[-tooLate]
-      #   moonBins = c(moonBins,endDate)}
-      # 
-      # # find which 5-min bins are during moon periods
-      # whichMoon = histc(as.numeric(reducedDateVec),as.numeric(moonBins))
-      # whichMoon$bin[whichMoon$bin==0] = NA
-      # moonInd = which(whichMoon$bin%%2!=0) # odd bins are moon up periods
-      # 
-      # # find which 5-min bins during moon up periods are also during nighttime
-      # whichNightMoon = histc(as.numeric(reducedDateVec[moonInd]),as.numeric(nightBins))
-      # 
-      # # calculate proportion of each night moon is up
-      # moonProp = whichNightMoon$cnt[seq(1,length(whichNightMoon$cnt),by=2)]/nightBinCounts
-      # 
-      # # Determine autocorrelation and create grouping variable for GEEGLM
-      # corr = acf(nightPresProp,lag.max=90,na.action=na.exclude,plot=FALSE)
-      # lagID = which(abs(corr$acf)<0.2) # determine lag at which autocorrelation is <0.2
-      # numClust = ceiling(length(nightPresProp)/(lagID[1]-1))
-      # if (numClust<length(nightPresProp)){
-      #   clustID = rep(1:numClust,each=lagID[1])
-      #   clustID = clustID[1:length(nightPresProp)]
-      # } else {
-      #   clustID = 1:length(nightPresProp)
-      # }
-      # 
-      # # combine lunar variables into master data frame
-      # masterLun = cbind(as.character(nightSt),as.character(nightEnd),nightPresProp,nightIllum$avgIllum,moonProp,clustID)
-      # colnames(masterLun) = c("NightStart","NightEnd","PropPres","AvgLunIllum","PropMoonUp","GroupID")
-      # 
-      # # save as a .csv
-      # saveName = paste(tsDir,'/',CTname,'_at_',sites[j],"_",int,'_MasterLun.csv',sep="")
-      # write.csv(masterLun,saveName,row.names=FALSE)
-      
       # get nighttime bins (dusk/night/dawn)
       nb = which(dayPhase=="Dusk" | dayPhase=="Night" | dayPhase=="Dawn")
       nightBins = reducedDateVec[nb]
@@ -327,18 +247,29 @@ for (i in goodIdx){  # for each species' file
         } else if (length(thisRise)==0 & length(thisSet)==0){ # if the moon doesn't rise or set on this day? 
           moonPres[thisDay] = "UhOh"
         }
-        
       }
-      
       
       # get phase of moon
       allMoonPhase = getMoonIllumination(date=as.character(nightBins),keep="phase")
-      keepPhase = which(as.POSIXct(allMoonPhase$Date,tz="GMT",origin="1970-01-01") %in% nightBins)
-      moonPhase = allMoonPhase$phase[keepPhase]
+      moonPhase = allMoonPhase$phase
       
-      # load altitude and apparent magnitude data (downloaded from Tethys)
-      moonAlt
-      moonMag
+      # # get altitude of moon; data are for all night bins, not just when moon is up
+      # allMoonAlt = getMoonPosition(date=as.character(nightBins),lat=lats[j],lon=lons[j],keep="altitude")
+      # moonAlt = allMoonAlt$altitude
+      
+      # load apparent magnitude data (downloaded from Tethys)
+      # Note: mag data is only for when the moon is up, # bins in these files
+      # will not match # nightBins
+      lunFile = str_which(lunFileList,sites[j])
+      magElDat = data.frame(read.csv(lunFileList[lunFile])) 
+      keepInd = which(as.POSIXct(magElDat$Date,format="%d-%b-%Y %H:%M:%S",tz="GMT") %in% nightBins)
+      putWhere = match(as.POSIXct(magElDat$Date,format="%d-%b-%Y %H:%M:%S",tz="GMT"),nightBins)
+      keepInd = keepInd[!is.na(keepInd)]
+      putWhere = putWhere[!is.na(putWhere)]
+      moonMag = matrix(nrow=length(nightBins),ncol=1)
+      moonMag[putWhere] = magElDat$Magnitude[keepInd]
+      moonEl = matrix(nrow=length(nightBins),ncol=1)
+      moonEl[putWhere] = magElDat$Elevation[keepInd]
       
       # Determine autocorrelation and create grouping variable for GEEGLM
       corr = acf(nightPresence,lag.max=90,na.action=na.exclude,plot=FALSE)
@@ -352,7 +283,7 @@ for (i in goodIdx){  # for each species' file
       }
       
       # combine lunar variables into master data frame
-      masterLun = cbind(nightPresence,as.character(nightBins),nightPhase,moonPres,moonPhase,moonMag,moonAlt,clustID)
+      masterLun = cbind(nightPresence,as.character(nightBins),nightPhase,moonPres,moonPhase,moonMag,moonEl,clustID)
       colnames(masterLun) = c("NightPres","NightBinTimes","NightPhase","MoonPres","MoonPhase","MoonMag","MoonAltitude","GroupID")
       
     }
@@ -363,3 +294,87 @@ for (i in goodIdx){  # for each species' file
 
 
 
+##### Old code for lunar data frames
+
+# ## calculate proportion of each night with clicks
+# nightInd = which(dayPhase=='Night')
+# gaps = which(diff(nightInd,lag=1)>1)
+# nightEndInd = nightInd[gaps]
+# nightStInd = nightInd[gaps+1]
+# nightEndInd = nightEndInd[2:length(nightEndInd)] # data starts during nighttime, incomplete data for that night
+# nightEndInd = c(nightEndInd,nightInd[length(nightInd)])
+# nightSt = reducedDateVec[nightStInd]
+# nightEnd = reducedDateVec[nightEndInd]
+# nightBins = as.POSIXct(c(t(cbind(nightSt,nightEnd))),tz="GMT",origin="1970-01-01")
+# # find which 5-min bins fall into each night & day
+# whichNight = histc(as.numeric(reducedDateVec),as.numeric(nightBins))
+# # tally number of bins in each night (odd bins are night, even are day)
+# nightBinCounts = whichNight$cnt[seq(1,length(whichNight$cnt),by=2)] 
+# 
+# # count how many bins each night have presence
+# nightDF = data.frame(Bin=unlist(whichNight$bin),Pres=Presence)
+# nightPres = nightDF %>% 
+#   group_by(Bin) %>%
+#   summarise(numBins = sum(Pres))
+# if (nightPres$Bin[1]==0){ # get rid of bins that didn't fall into a full night
+#   nightPres = nightPres[2:dim(nightPres)[1],]
+# }
+# nightPres = nightPres[seq(1,dim(nightPres)[1],b=2),] # odd bins are night, even are day
+# # divide # presence bins by # bins in each night
+# nightPresProp = nightPres$numBins/nightBinCounts
+# 
+# # calculate average lunar illuminance each night
+# illumDF = data.frame(Bin=unlist(whichNight$bin),Illum=illum)
+# nightIllum = illumDF %>%
+#   group_by(Bin) %>%
+#   summarise(avgIllum = mean(Illum))
+# if (nightIllum$Bin[1]==0){
+#   nightIllum = nightIllum[2:dim(nightIllum)[1],]
+# }
+# nightIllum = nightIllum[seq(1,dim(nightIllum)[1],by=2),]
+# 
+# # get times when moon is up
+# lunTime = getMoonTimes(date=seq.Date(as.Date(dateStart),as.Date(dateEnd+(60*60*24)),by=1),
+#                        lat=lats[j],lon=lons[j],
+#                        keep=c("rise","set"),
+#                        tz="UTC")
+# lunR = lunTime[,4]; lunR = lunR[is.na(lunR)==0] # some NAs showing up, get rid of them
+# lunS = lunTime[,5]; lunS = lunS[is.na(lunS)==0]
+# moonBins = as.POSIXlt(sort(cbind(lunR,lunS)),tz="GMT",origin="1970-01-01")# moon rise/set bins
+# firstRise = which(moonBins==lunR[1]) # want to start with moon rise
+# moonBins = moonBins[firstRise:length(moonBins),]
+# 
+# tooLate = which(moonBins>=dateEnd) # don't go beyond study end date
+# if (!is.empty(tooLate)){
+#   moonBins = moonBins[-tooLate]
+#   moonBins = c(moonBins,endDate)}
+# 
+# # find which 5-min bins are during moon periods
+# whichMoon = histc(as.numeric(reducedDateVec),as.numeric(moonBins))
+# whichMoon$bin[whichMoon$bin==0] = NA
+# moonInd = which(whichMoon$bin%%2!=0) # odd bins are moon up periods
+# 
+# # find which 5-min bins during moon up periods are also during nighttime
+# whichNightMoon = histc(as.numeric(reducedDateVec[moonInd]),as.numeric(nightBins))
+# 
+# # calculate proportion of each night moon is up
+# moonProp = whichNightMoon$cnt[seq(1,length(whichNightMoon$cnt),by=2)]/nightBinCounts
+# 
+# # Determine autocorrelation and create grouping variable for GEEGLM
+# corr = acf(nightPresProp,lag.max=90,na.action=na.exclude,plot=FALSE)
+# lagID = which(abs(corr$acf)<0.2) # determine lag at which autocorrelation is <0.2
+# numClust = ceiling(length(nightPresProp)/(lagID[1]-1))
+# if (numClust<length(nightPresProp)){
+#   clustID = rep(1:numClust,each=lagID[1])
+#   clustID = clustID[1:length(nightPresProp)]
+# } else {
+#   clustID = 1:length(nightPresProp)
+# }
+# 
+# # combine lunar variables into master data frame
+# masterLun = cbind(as.character(nightSt),as.character(nightEnd),nightPresProp,nightIllum$avgIllum,moonProp,clustID)
+# colnames(masterLun) = c("NightStart","NightEnd","PropPres","AvgLunIllum","PropMoonUp","GroupID")
+# 
+# # save as a .csv
+# saveName = paste(tsDir,'/',CTname,'_at_',sites[j],"_",int,'_MasterLun.csv',sep="")
+# write.csv(masterLun,saveName,row.names=FALSE)
