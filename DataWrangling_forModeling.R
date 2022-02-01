@@ -204,8 +204,8 @@ for (i in goodIdx){  # for each species' file
                              lat=lats[j],lon=lons[j],
                              keep=c("rise","set"),
                              tz="UTC")
-      lunR = lunTime[,4]; lunR = lunR[is.na(lunR)==0] # some NAs showing up, get rid of them
-      lunS = lunTime[,5]; lunS = lunS[is.na(lunS)==0]
+      lunR = lunTime[,4]; lunR = lunR[!is.na(lunR)] # some NAs showing up, get rid of them
+      lunS = lunTime[,5]; lunS = lunS[!is.na(lunS)]
       
       # determine if each time bin is before, during, or after moon presence
       nightBinDays = floor_date(nightBins,unit="days")
@@ -257,9 +257,8 @@ for (i in goodIdx){  # for each species' file
       # allMoonAlt = getMoonPosition(date=as.character(nightBins),lat=lats[j],lon=lons[j],keep="altitude")
       # moonAlt = allMoonAlt$altitude
       
-      # load apparent magnitude data (downloaded from Tethys)
-      # Note: mag data is only for when the moon is up, # bins in these files
-      # will not match # nightBins
+      # load apparent magnitude and elevation data (downloaded from Tethys)
+      # Note: data is only for when the moon is up, # bins in these files will not match # nightBins
       lunFile = str_which(lunFileList,sites[j])
       magElDat = data.frame(read.csv(lunFileList[lunFile])) 
       keepInd = which(as.POSIXct(magElDat$Date,format="%d-%b-%Y %H:%M:%S",tz="GMT") %in% nightBins)
@@ -270,6 +269,16 @@ for (i in goodIdx){  # for each species' file
       moonMag[putWhere] = magElDat$Magnitude[keepInd]
       moonEl = matrix(nrow=length(nightBins),ncol=1)
       moonEl[putWhere] = magElDat$Elevation[keepInd]
+      
+      # some bins missing in magEl data, interpolate
+      magTimeDiff = diff(as.POSIXct(magElDat$Date,format="%d-%b-%Y %H:%M:%S",tz="GMT"))
+      skippedBins = which(magTimeDiff==dminutes(x=10)) # time gaps
+      keepSkippedBins = intersect(keepInd,skippedBins) # time gaps in night bins that we care about
+      missMag = apply(cbind(magElDat$Magnitude[keepSkippedBins],magElDat$Magnitude[keepSkippedBins+1]),MARGIN=1,mean)
+      missEl = apply(cbind(magElDat$Elevation[keepSkippedBins],magElDat$Elevation[keepSkippedBins+1]),MARGIN=1,mean)
+      missWhere = which(diff(putWhere)==2) # indices where data is missing
+      moonMag[putWhere[missWhere]+1] = missMag
+      
       
       # Determine autocorrelation and create grouping variable for GEEGLM
       corr = acf(nightPresence,lag.max=90,na.action=na.exclude,plot=FALSE)
