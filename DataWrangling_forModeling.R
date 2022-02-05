@@ -76,35 +76,12 @@ for (i in goodIdx){  # for each species' file
     
     if (!numel(pres)==0){ # if there is any presence
       
-      # # plot presence to determine if it's worth modeling
-      # plot(dateVec,numClicks,main=paste(CTname,'at',sites[j],sep=" "),
-      #      ylab="# Clicks Per Bin")
-      # 
-      # userVote = c()
-      # while (numel(userVote)==0){
-      #   
-      #   userVote = readline(prompt="Enter 1 to proceed with modeling, or 0 to skip to next site: ")
-      #   
-      #   if (!numel(userVote)==0 && userVote!=1 && userVote!=0){
-      #     message('WARNING: Entry not allowed')
-      #     userVote = c()
-      #     
-      #   }
-      #   else if (numel(userVote)==0){
-      #     message('WARNING: Entry not allowed')
-      #   }
-      #   
-      # }
-      
-      #if (as.numeric(userVote)==1){ # only proceed if user says "yes" to modeling
-      
       Presence = rep(0,length(numClicks))
       Presence[pres] = 1
       
       # Determine autocorrelation and create grouping variable for GEEGLMs
       corr = acf(Presence[1:50000],lag.max=1500,na.action=na.exclude,plot=FALSE) 
       lagID = which(abs(corr$acf)<0.2) # determine lag at which autocorrelation is <0.2
-      #itsVal = IntegralTimeScaleCalc(numClicks[1:50000])
       numClust = length(numClicks)/(lagID[1]-1)
       if (numClust<length(numClicks)){
         clustID = rep(1:ceiling(numClust),each=lagID[1])
@@ -189,7 +166,6 @@ for (i in goodIdx){  # for each species' file
       # # save as a .csv
       # saveName = paste(tsDir,'/',CTname,'_at_',sites[j],"_",int,'_Master.csv',sep="")
       # write.csv(master,saveName,row.names=FALSE)
-      # #}
       
       ### Create separate data frames for modeling nighttime presence relative to lunar variables -----
       
@@ -276,12 +252,17 @@ for (i in goodIdx){  # for each species' file
       keepSkippedBins = intersect(keepInd,skippedBins) # time gaps in night bins that we care about
       missMag = apply(cbind(magElDat$Magnitude[keepSkippedBins],magElDat$Magnitude[keepSkippedBins+1]),MARGIN=1,mean)
       missEl = apply(cbind(magElDat$Elevation[keepSkippedBins],magElDat$Elevation[keepSkippedBins+1]),MARGIN=1,mean)
-      missWhere = which(diff(putWhere)==2) # indices where data is missing
-      moonMag[putWhere[missWhere]+1] = missMag
+      missBins = as.POSIXct(magElDat$Date[keepSkippedBins],format="%d-%b-%Y %H:%M:%S",tz="GMT")+dminutes(x=5)
+      putWhere2 = match(missBins,nightBins) # indices where data is missing
+      moonMag[putWhere2] = missMag
+      moonEl[putWhere2] = missEl
       
+      # make sure no magnitude or elevation data when moon is not up
+      moonMag[moonPres=="Pre"|moonPres=="Post"] = NA
+      moonEl[moonPres=="Pre"|moonPres=="Post"] = NA
       
       # Determine autocorrelation and create grouping variable for GEEGLM
-      corr = acf(nightPresence,lag.max=90,na.action=na.exclude,plot=FALSE)
+      corr = acf(nightPresence,lag.max=50000,na.action=na.exclude,plot=FALSE)
       lagID = which(abs(corr$acf)<0.2) # determine lag at which autocorrelation is <0.2
       numClust = ceiling(length(nightPresence)/(lagID[1]-1))
       if (numClust<length(nightPresence)){
@@ -294,6 +275,10 @@ for (i in goodIdx){  # for each species' file
       # combine lunar variables into master data frame
       masterLun = cbind(nightPresence,as.character(nightBins),nightPhase,moonPres,moonPhase,moonMag,moonEl,clustID)
       colnames(masterLun) = c("NightPres","NightBinTimes","NightPhase","MoonPres","MoonPhase","MoonMag","MoonAltitude","GroupID")
+      
+      # save as a .csv
+      saveName = paste(tsDir,'/',CTname,'_at_',sites[j],"_",int,'_MasterLun.csv',sep="")
+      write.csv(masterLun,saveName,row.names=FALSE)
       
     }
     
