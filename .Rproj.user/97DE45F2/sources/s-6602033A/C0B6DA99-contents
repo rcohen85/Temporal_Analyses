@@ -1,4 +1,22 @@
 #### PLOT ALL FIXED SPLINE MODELS FOR A GIVEN SPECIES --------------------------------------
+library(tidyverse)
+library(lubridate)
+library(splines2)
+library(pracma)
+library(SimDesign)
+library(boot)
+
+
+modelDFDir = 'J:/Chpt_2/TimeSeries_ScaledByEffortError'
+outDir = 'J:/Chpt_2/ModelOutput'
+int = "5minBin"
+
+dfList = list.files(path=modelDFDir,pattern=paste('*',int,'_Master.csv',sep=""),
+                    full.names=TRUE,recursive=FALSE,
+                    include.dirs=FALSE,no..=TRUE)
+lunList = list.files(path=modelDFDir,pattern=paste('*',int,'_MasterLun.csv',sep=""),
+                     full.names=TRUE,recursive=FALSE,
+                     include.dirs=FALSE,no..=TRUE)
 
 species = list.dirs(outDir,recursive=FALSE)
 
@@ -30,15 +48,6 @@ for ( i in 1:numel(species)){
     thisModInd = intersect(thisSpec,atSite)
     masterLun = data.frame(read.csv(lunList[thisModInd])) # lunar model data frame
     
-    # masterLun$MoonMag[is.na(masterLun$MoonMag)] = -3.5
-    # masterLun$MoonAltitude[masterLun$MoonAltitude<0] = -1
-    # masterLun$MoonAltitude[is.na(masterLun$MoonAltitude)] = -1
-    
-    # keepInd = intersect(which(masterLun$MoonPres=="MoonUp"),
-    #                     which(!is.na(masterLun$MoonAltitude)))
-    # keepInd = intersect(keepInd,which(!is.na(masterLun$MoonMag)))
-    # masterLun = masterLun[keepInd,]
-    
     masterLun$MoonAltitude = masterLun$MoonAltitude*(180/pi) # convert altitude from radians to degrees
     
     if (site=="HAT"){
@@ -66,15 +75,6 @@ for ( i in 1:numel(species)){
     BootstrapParameters2<-rmvnorm(10000, coef(lunMod), summary(lunMod)$cov.unscaled)
     MoonPhaseBootstrapCoefs<- BootstrapParameters2[,MPInd]
     MoonAltBootstrapCoefs<- BootstrapParameters2[,AltInd]
-    # MoonMagBootstrapCoefs<- BootstrapParameters2[,2:6]
-    # MoonPresBootstrapCoefs<- BootstrapParameters2[,c(1,14:15)]
-    # MoonPropBootstrapCoefs<- BootstrapParameters2[,MoonPropInd]
-    # PhsBootstrapCoefs<- BootstrapParameters[,PhsInd]
-    # if (j==7){ # if HAT, get coefficients for Site
-    #   hatSiteBootstrapCoefs<- BootstrapParameters[,c(1,7)]
-    #   quant.func<- function(x){quantile(x, probs=c(0.025,0.975))}
-    #   cisH<-apply(hatSiteBootstrapCoefs, 2, quant.func)
-    # }
     
     # Predict presence at each X value using model coefficients
     JxJD = model.matrix(tempMod)[,JDInd]%*%coef(tempMod)[JDInd]
@@ -82,10 +82,7 @@ for ( i in 1:numel(species)){
     JxYr = model.matrix(tempMod)[,YrInd]%*%coef(tempMod)[YrInd]
     JxMP = model.matrix(lunMod)[,MPInd]*coef(lunMod)[MPInd]
     JxAlt = model.matrix(lunMod)[,AltInd]*coef(lunMod)[AltInd]
-    # JxMoonMag = model.matrix(lunMod)[,2:6]*coef(lunMod)[2:6]
-    # JxMoonPres = model.matrix(lunMod)[,c(1,14:15)]*coef(lunMod)[c(1,14:15)]
-    #JxMoonProp = model.matrix(lunMod)[,MoonPropInd]*coef(lunMod)[MoonPropInd]
-    
+
     
     ### Generate GEEGLM partial residual plots ---------------------------
     # Julian Day ---------------------------
@@ -106,6 +103,8 @@ for ( i in 1:numel(species)){
     
     JplotDF = data.frame(JDayForPlotting,RealFitCenterJ)
     colnames(JplotDF) = c("Jday","Fit")
+    
+    # calculate data density
     densDF = data.frame(JD = seq(1,365,1))
     whichDay = histc(thisSite$JulianDay,seq(1,366,1)) # Count up observations on each Julian day
     densDF$normDens = (whichDay$cnt-min(whichDay$cnt))[1:365] # set min to 0
@@ -147,18 +146,19 @@ for ( i in 1:numel(species)){
                                    DayPhaseBootstrapCoefs[,4]),
                                  as.factor(rep(c("Dawn","Day","Dusk","Night"),each=10000)))
     colnames(AdjustedDPCoefs) = c("Coefficient","DayPhase")
-    AdjustedDPCoefs = inv.logit(AdjustedPhsCoefs$Coefficient)
+    # AdjustedDPCoefs = inv.logit(AdjustedPhsCoefs$Coefficient)
     
     # calculate quantiles for plotting limits
     quants = AdjustedDPCoefs %>%
-      group_by(Phase) %>%
+      group_by(DayPhase) %>%
       summarize(q25 = quantile(Coefficient,probs=0.25),
                 q75 = quantile(Coefficient,probs=0.75))
     iqr = quants$q75-quants$q25
     
     #saveName = paste(seasDir,'/',CTname,'/',sites[j],"_",int,"_GEEGLM_YearPlot.png",sep="")
     Phs = ggplot(AdjustedDPCoefs,aes(DayPhase,Coefficient)
-    ) + geom_boxplot(outlier.shape=NA,
+    ) + geom_boxplot(varwidth=TRUE,
+                     outlier.shape=NA,
                      lwd=0.2
     )+ labs(x='Day Phase',y="Probability"
     )+ coord_cartesian(ylim = c(min(quants$q25-(1.75*max(iqr))),(1.75*max(iqr))+max(quants$q75))
@@ -190,7 +190,8 @@ for ( i in 1:numel(species)){
     iqr = quants$q75-quants$q25
     
     Yr = ggplot(AdjustedYearCoefs,aes(Year,Prob)
-    ) + geom_boxplot(outlier.shape=NA,
+    ) + geom_boxplot(varwidth=TRUE,
+                     outlier.shape=NA,
                      lwd=0.2
     ) + labs(x='Year',y="Probability"
     ) + coord_cartesian(ylim = c(min(quants$q25-(1.75*max(iqr))),(1.75*max(iqr))+max(quants$q75))
@@ -203,79 +204,85 @@ for ( i in 1:numel(species)){
     
     
     ## MoonPhase ---------------------------
-    
+
     MoonPhaseForPlotting<- seq(0, 1, length=5000)
     MPBasis<- mSpline(MoonPhaseForPlotting,
-                      knots=quantile(MoonPhase,probs=c(0.333,0.666)),
+                      knots=quantile(masterLun$MoonPhase,probs=c(0.333,0.666)),
                       Boundary.knots=c(0,1),
                       periodic=T)
     RealFitMP<- MPBasis%*%coef(lunMod)[MPInd] # multiply basis functions by model coefficients to get values of spline at each X
     RealFitCenterMP<- RealFitMP-mean(JxMP)# adjust offset
     RealFitCenterMP = inv.logit(RealFitCenterMP)
-    MPBootstrapFits<- PhaseBasis%*%t(MoonPhaseBootstrapCoefs) # get spread of spline values at each X based on distributions of each coefficient
+    MPBootstrapFits<- MPBasis%*%t(MoonPhaseBootstrapCoefs) # get spread of spline values at each X based on distributions of each coefficient
     quant.func<- function(x){quantile(x, probs=c(0.025,0.975))}
     cisMP<-apply(MPBootstrapFits, 1, quant.func)-mean(JxMP) # confidence interval of smooth function estimate
     MPcil = inv.logit(cisMP[1,])
     MPciu = inv.logit(cisMP[2,])
-    
-    
+
+
     MPplotDF = data.frame(MoonPhaseForPlotting,RealFitCenterMP)
     colnames(MPplotDF) = c("MoonPhase","Fit")
-    whichMP = histc(masterLun$MoonPhase,seq(0,1,0.01)) # Count up observations on each Julian day
-    densDF$normDens = (whichMP$cnt-min(whichMP$cnt))[1:365] # set min to 0
-    # normalize by max # obs possible (288 5-min bins per day, times 3 observations of each Julian day in the study period)
-    densDF$normDens = densDF$normDens/864#max(densDF$normDens) 
-    
-    
+
+    # calculate data density
+    densDF = data.frame(MoonPhase = seq(0,1,0.01))
+    # Count up observations at each moon phase value
+    whichMP = histc(masterLun$MoonPhase,seq(0,1.01,0.01))
+    densDF$normDens = (whichMP$cnt-min(whichMP$cnt)) # set min to 0
+    densDF$normDens = densDF$normDens/max(densDF$normDens) # normalize by max # obs
+
+
     MP = ggplot(MPplotDF, aes(MoonPhase, Fit),
     ) + geom_smooth(fill = "grey",
                     colour = "black",
-                    aes(ymin=Phasecil, ymax=Phaseciu),
+                    aes(ymin=MPcil, ymax=MPciu),
                     stat ="identity"
     ) + labs(x = "Moon Phase",
              y = "Probability",
     ) + theme(axis.line = element_line(size=0.2),
               panel.background = element_blank()
     )
-    
+
     saveName = paste(outDir,'/',CTname,'/',sites[j],"_",int,"_GEEGLM_MoonPhasePlot_Probs.pdf",sep="")
     ggsave(saveName,device="pdf", width=2, scale=3, height=0.5, units="in",dpi=600)
     while (dev.cur()>1) {dev.off()}
-    
-    LIDdens = ggplot(densDF)+geom_area(aes(LunFrac,normDens),
+
+    MPdens = ggplot(densDF)+geom_area(aes(MoonPhase,normDens),
                                        fill=4
     ) + scale_x_continuous(breaks=c(0,0.5,0.99),
                            label=c("0","0.5","1")
     ) + labs(y="Data Density",x=NULL
     ) + theme_minimal()
-    
-    saveName = paste(outDir,'/',CTname,'/',sites[j],"_",int,"_GEEGLM_LIDataDensity.pdf",sep="")
+
+    saveName = paste(outDir,'/',CTname,'/',sites[j],"_",int,"_GEEGLM_MPDataDensity.pdf",sep="")
     ggsave(saveName,device="pdf", width=4, scale=4, height=0.5, units="in",dpi=600)
-    
+
     ## Moon Altitude ---------------------------
-    
+
     MoonAltForPlotting<- seq(min(masterLun$MoonAltitude),max(masterLun$MoonAltitude), length=5000)
     AltBasis<- mSpline(MoonAltForPlotting,
-                       knots=c(25, 50),
+                       knots=quantile(masterLun$MoonAltitude,probs=c(0.333,0.666)),
                        Boundary.knots=c(min(masterLun$MoonAltitude),max(masterLun$MoonAltitude)))
-    RealFitAlt<- AltBasis%*%coef(lunMod)[4:8] # multiply basis functions by model coefficients to get values of spline at each X
-    RealFitCenterAlt<- RealFitAlt-mean(JxMoonAlt)# adjust offset
+    RealFitAlt<- AltBasis%*%coef(lunMod)[AltInd] # multiply basis functions by model coefficients to get values of spline at each X
+    RealFitCenterAlt<- RealFitAlt-mean(JxAlt)# adjust offset
     RealFitCenterAlt = inv.logit(RealFitCenterAlt)
     AltBootstrapFits<- AltBasis%*%t(MoonAltBootstrapCoefs) # get spread of spline values at each X based on distributions of each coefficient
     quant.func<- function(x){quantile(x, probs=c(0.025,0.975))}
-    cisAlt<-apply(AltBootstrapFits, 1, quant.func)-mean(JxMoonAlt) # confidence interval of smooth function estimate
+    cisAlt<-apply(AltBootstrapFits, 1, quant.func)-mean(JxAlt) # confidence interval of smooth function estimate
     Altcil = inv.logit(cisAlt[1,])
     Altciu = inv.logit(cisAlt[2,])
-    
-    
+
+
     AltplotDF = data.frame(MoonAltForPlotting,RealFitCenterAlt)
     colnames(AltplotDF) = c("MoonAlt","Fit")
-    densDF = data.frame(LunFrac = seq(0,0.99,by=0.01))
-    whichDay = histc(masterLun$AvgLunIllum,seq(0,1.01,by=0.01)) # Count up observations in each lunar illuminance bin
-    densDF$normDens = (whichDay$cnt-min(whichDay$cnt))[1:100] # set min to 0
-    densDF$normDens = densDF$normDens/max(densDF$normDens) # normalize by max # obs possible (288 5-min bins per day, times 3 days)
-    
-    
+
+    # calculate data density
+    densDF = data.frame(MoonAlt = seq(min(masterLun$MoonAltitude),max(masterLun$MoonAltitude),1))
+    # Count up observations of each Altitude value
+    whichAlt = histc(masterLun$MoonAltitude,seq(min(masterLun$MoonAltitude),max(masterLun$MoonAltitude)+1,1))
+    densDF$normDens = (whichAlt$cnt-min(whichAlt$cnt)) # set min to 0
+    densDF$normDens = densDF$normDens/max(densDF$normDens) # normalize by max # obs
+
+
     MoonAlt = ggplot(AltplotDF, aes(MoonAlt, Fit),
     ) + geom_smooth(fill = "grey",
                     colour = "black",
@@ -286,69 +293,22 @@ for ( i in 1:numel(species)){
     ) + theme(axis.line = element_line(size=0.2),
               panel.background = element_blank()
     )
-    
+
     saveName = paste(outDir,'/',CTname,'/',sites[j],"_",int,"_GEEGLM_MoonAltPlot_Probs.pdf",sep="")
     ggsave(saveName,device="pdf", width=2, scale=3, height=0.5, units="in",dpi=600)
     while (dev.cur()>1) {dev.off()}
-    
-    LIDdens = ggplot(densDF)+geom_area(aes(LunFrac,normDens),
+
+    Altdens = ggplot(densDF)+geom_area(aes(MoonAlt,normDens),
                                        fill=4
     ) + scale_x_continuous(breaks=c(0,0.5,0.99),
                            label=c("0","0.5","1")
     ) + labs(y="Data Density",x=NULL
     ) + theme_minimal()
-    
-    saveName = paste(outDir,'/',CTname,'/',sites[j],"_",int,"_GEEGLM_LIDataDensity.pdf",sep="")
+
+    saveName = paste(outDir,'/',CTname,'/',sites[j],"_",int,"_GEEGLM_MoonAltDataDensity.pdf",sep="")
     ggsave(saveName,device="pdf", width=4, scale=4, height=0.5, units="in",dpi=600)
-    
-    ## Apparent Magnitude ---------------------------
-    
-    # MoonMagForPlotting<- seq(min(masterLun$MoonMag),max(masterLun$MoonMag), length=5000)
-    # MagBasis<- mSpline(MoonMagForPlotting,
-    #                    knots=c(-9.5,-6.5),
-    #                    Boundary.knots=c(min(masterLun$MoonMag),max(masterLun$MoonMag)))
-    # RealFitMag<- MagBasis%*%coef(lunMod)[2:6] # multiply basis functions by model coefficients to get values of spline at each X
-    # RealFitCenterMag<- RealFitMag-mean(JxMoonMag)# adjust offset
-    # RealFitCenterMag = inv.logit(RealFitCenterMag)
-    # MagBootstrapFits<- MagBasis%*%t(MoonMagBootstrapCoefs) # get spread of spline values at each X based on distributions of each coefficient
-    # quant.func<- function(x){quantile(x, probs=c(0.025,0.975))}
-    # cisMag<-apply(MagBootstrapFits, 1, quant.func)-mean(JxMoonMag) # confidence interval of smooth function estimate
-    # Magcil = inv.logit(cisMag[1,])
-    # Magciu = inv.logit(cisMag[2,])
-    #
-    # MagplotDF = data.frame(MoonMagForPlotting,RealFitCenterMag)
-    # colnames(MagplotDF) = c("MoonMag","Fit")
-    # # densDF = data.frame(LunFrac = seq(0,0.99,by=0.01))
-    # # whichDay = histc(masterLun$AvgLunIllum,seq(0,1.01,by=0.01)) # Count up observations in each lunar illuminance bin
-    # # densDF$normDens = (whichDay$cnt-min(whichDay$cnt))[1:100] # set min to 0
-    # # densDF$normDens = densDF$normDens/max(densDF$normDens) # normalize by max # obs possible (288 5-min bins per day, times 3 days)
-    #
-    #
-    # MoonMag = ggplot(MagplotDF, aes(MoonMag, Fit),
-    # ) + geom_smooth(fill = "grey",
-    #                 colour = "black",
-    #                 aes(ymin=Magcil, ymax=Magciu),
-    #                 stat ="identity"
-    # ) + labs(x = "Apparent Magnitude",
-    #          y = "Probability",
-    # ) + theme(axis.line = element_line(size=0.2),
-    #           panel.background = element_blank()
-    # )
-    #
-    # saveName = paste(outDir,'/',CTname,'/',sites[j],"_",int,"_GEEGLM_MoonMagPlot_Probs.pdf",sep="")
-    # ggsave(saveName,device="pdf", width=2, scale=3, height=0.5, units="in",dpi=600)
-    # while (dev.cur()>1) {dev.off()}
-    #
-    # LIDdens = ggplot(densDF)+geom_area(aes(LunFrac,normDens),
-    #                                    fill=4
-    # ) + scale_x_continuous(breaks=c(0,0.5,0.99),
-    #                        label=c("0","0.5","1")
-    # ) + labs(y="Data Density",x=NULL
-    # ) + theme_minimal()
-    #
-    # saveName = paste(outDir,'/',CTname,'/',sites[j],"_",int,"_GEEGLM_LIDataDensity.pdf",sep="")
-    # ggsave(saveName,device="pdf", width=4, scale=4, height=0.5, units="in",dpi=600)
-    
+
+
     ## Moon Presence ---------------------------
     # AdjustedMoonPresCoefs = data.frame(c(MoonPresBootstrapCoefs[,1]-mean(MoonPresBootstrapCoefs[,1]),
     #                                      MoonPresBootstrapCoefs[,2],
@@ -376,56 +336,6 @@ for ( i in 1:numel(species)){
     # while (dev.cur()>1) {dev.off()}
     #
     
-    #     ## Moon Proportion Up ---------------------------
-    #
-    #     MoonPropForPlotting<- seq(0, 1, length=5000)
-    #     MPBasis<- mSpline(MoonPropForPlotting,
-    #                       knots=quantile(masterLun$PropMoonUp,probs=c(0.5)),
-    #                       Boundary.knots=c(0,1))
-    #     RealFitMP<- MPBasis%*%coef(lunMod)[MoonPropInd] # multiply basis functions by model coefficients to get values of spline at each X
-    #     RealFitCenterMP<- RealFitMP-mean(JxMoonProp)#-coef(tempMod)[1] # adjust offset
-    #     RealFitCenterMP = inv.logit(RealFitCenterMP)
-    #     MoonPropBootstrapFits<- MPBasis%*%t(MoonPropBootstrapCoefs) # get spread of spline values at each X based on distributions of each coefficient
-    #     quant.func<- function(x){quantile(x, probs=c(0.025,0.975))}
-    #     cisMP<-apply(MoonPropBootstrapFits, 1, quant.func)-mean(JxMoonProp) # confidence interval of smooth function estimate
-    #     MPcil = inv.logit(cisMP[1,])
-    #     MPciu = inv.logit(cisMP[2,])
-    #
-    #
-    #     MPplotDF = data.frame(MoonPropForPlotting,RealFitCenterMP)
-    #     colnames(MPplotDF) = c("MoonProp","Fit")
-    #     densDF = data.frame(MoonProp = seq(0,0.99,by=0.01))
-    #     whichDay = histc(masterLun$PropMoonUp,seq(0,1.01,by=0.01)) # Count up observations in each lunar illuminance bin
-    #     densDF$normDens = (whichDay$cnt-min(whichDay$cnt))[1:100] # set min to 0
-    #     densDF$normDens = densDF$normDens/max(densDF$normDens) # normalize by max # obs possible (288 5-min bins per day, times 3 days)
-    #
-    #
-    #     MoonProp = ggplot(MPplotDF, aes(MoonProp, Fit),
-    #     ) + geom_smooth(fill = "grey",
-    #                     colour = "black",
-    #                     aes(ymin=MPcil, ymax=MPciu),
-    #                     stat ="identity"
-    #     ) + labs(x = "Proportion of Night with Moon",
-    #              y = "Probability",
-    #     ) + theme(axis.line = element_line(size=0.2),
-    #               panel.background = element_blank()
-    #     )
-    #
-    #     saveName = paste(outDir,'/',CTname,'/',sites[j],"_",int,"_GEEGLM_MoonPropPlot_Probs.pdf",sep="")
-    #     ggsave(saveName,device="pdf", width=2, scale=3, height=0.5, units="in",dpi=600)
-    #     while (dev.cur()>1) {dev.off()}
-    #
-    #     MPDdens = ggplot(densDF)+geom_area(aes(MoonProp,normDens),
-    #                                        fill=4
-    #     ) + scale_x_continuous(breaks=c(0,0.5,0.99),
-    #                            label=c("0","0.5","1")
-    #     ) + labs(y="Data Density",x=NULL
-    #     ) + theme_minimal()
-    #
-    #     saveName = paste(outDir,'/',CTname,'/',sites[j],"_",int,"_GEEGLM_MPDataDensity.pdf",sep="")
-    #     ggsave(saveName,device="pdf", width=4, scale=4, height=0.5, units="in",dpi=600)
-    #
-    #
   }
   
 }

@@ -3,7 +3,7 @@
     "path": "D:/Code/Temporal_Analyses/Temporal_Models.R",
     "project_path": "Temporal_Models.R",
     "type": "r_source",
-    "hash": "0",
+    "hash": "227051296",
     "contents": "",
     "dirty": false,
     "created": 1643913903213.0,
@@ -12,15 +12,15 @@
     "properties": {
         "source_window_id": "",
         "Source": "Source",
-        "cursorPosition": "200,0",
-        "scrollLine": "25"
+        "cursorPosition": "188,17",
+        "scrollLine": "158"
     },
-    "folds": "26|25|130|0|\n133|14|188|0|\n282|46|345|0|\n",
-    "lastKnownWriteTime": 1644516078,
+    "folds": "",
+    "lastKnownWriteTime": 1644521862,
     "encoding": "UTF-8",
     "collab_server": "",
     "source_window": "",
-    "last_content_update": 1644516078402,
+    "last_content_update": 1644521862433,
     "read_only": false,
     "read_only_alternatives": []
 }
