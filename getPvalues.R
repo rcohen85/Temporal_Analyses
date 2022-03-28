@@ -2,11 +2,14 @@ getPvalues<-function(model, varlist=NULL, factorlist=NULL){
   #-----------------------------------------------------------------------------
   #' Calculate marginal p-values from a \code{model}.
   #'
-  #' An ANOVA is fitted repeatedly with each covariate being the last so that the output is marginal.  \code{varlist} and \code{factorlist} are optional and shorten the variable names in the output.
+  #' An ANOVA is fitted repeatedly with each covariate being the last so that the output is marginal.  
+  #' \code{varlist} and \code{factorlist} are optional and shorten the variable names in the output.
   #'
   #' @param model Fitted model object of class \code{gee}.
-  #' @param varlist (default =\code{NULL}). Vector of covariate names (continous covariates only) used to make the output table names shorter.  Useful if spline parameters are specified in the model.
-  #' @param factorlist (default =\code{NULL}). Vector of covariate names (factor covariates only) used to make the output table names shorter. Useful if spline parameters are specified in the model.
+  #' @param varlist (default =\code{NULL}). Vector of covariate names (continous covariates only) 
+  #' used to make the output table names shorter.  Useful if spline parameters are specified in the model.
+  #' @param factorlist (default =\code{NULL}). Vector of covariate names (factor covariates only) 
+  #' used to make the output table names shorter. Useful if spline parameters are specified in the model.
   #'
   #' @return
   #' Print out table of each variable and its associated marginal p-value.
