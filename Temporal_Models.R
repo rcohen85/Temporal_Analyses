@@ -2,14 +2,13 @@ library(tidyverse)
 library(lubridate)
 library(geepack)
 library(splines2)
-library(SimDesign)
 library(pracma)
 library(mgcv)
 library(car)
-library(corrplot)
-library(scales)
-library(patchwork)
-library(boot)
+library(stringr)
+# library(corrplot)
+# library(scales)
+# library(patchwork)
 source("getPvalues.r")
 
 
@@ -24,116 +23,11 @@ lunList = list.files(path=modelDFDir,pattern=paste('*',int,'_MasterLun.csv',sep=
                      full.names=TRUE,recursive=FALSE,
                      include.dirs=FALSE,no..=TRUE)
 
-#### EXPLORE SPLINE FITS ---------------------------------
-# Didn't do this for final lunar models, couldn't do <4 knots for moonPhase, need at least 2 internal
-# knots to model moonMag and moonAltitude given the weight of -3.5's and -1's introduced to account for 
-# moon-down periods
-# LunKnots_QIC_Comp = data.frame(Phase3=as.numeric(),
-#                                Phase4=as.numeric(),
-#                                MagLin=as.numeric(),
-#                                Mag3=as.numeric(),
-#                                Mag4=as.numeric(),
-#                                AltLin=as.numeric(),
-#                                Alt3=as.numeric(),
-#                                Alt4=as.numeric())
-# for (i in 1:numel(lunList)){
-# 
-#   # load file
-#   masterLun = data.frame(read.csv(lunList[i]))
-#   CTname = str_remove(dfList[i],paste(modelDFDir,'/',sep="")) # get the species/CT name
-#   site = str_remove(CTname,paste("_",int,"_MasterLun.csv",sep=""))
-#   site = sub(".*_","",site)
-#   CTname = sub("_.*","",CTname)
-#   if (str_detect(CTname,"Atl")){
-#     CTname = "Gervais"
-#   }
-# 
-#   # # Round Proportion of Presence to get it Poisson distributed
-#   # masterLun$PropPres = round(masterLun$PropPres*100,digits=0)
-#   
-#   masterLun$MoonMag[is.na(masterLun$MoonMag)] = 0
-#   masterLun$MoonAltitude[is.na(masterLun$MoonAltitude)] = -1
-# 
-#   # if it doesn't already exist, create directory to save figures
-#   if (!dir.exists(paste(outDir,'/',CTname,sep=""))){
-#     dir.create(paste(outDir,'/',CTname,sep=""))
-#   }
-# 
-#   # knots = list(c(0.333,0.666),c(0.275,0.5,0.725))
-#   knots = list(c(0.5),c(0.333,0.666))
-#   # Test whether to include Moon Phase with 3 or 4 knots (not doing linear cause it should be cyclic)
-#   mod01 = geeglm(NightPres~mSpline(MoonPhase,
-#                                    knots=quantile(masterLun$MoonPhase,probs=unlist(knots[1])),
-#                                    Boundary.knots=c(min(masterLun$MoonPhase),max(masterLun$MoonPhase)),
-#                                    periodic=T),
-#                  family=binomial,data=masterLun,id=GroupID,corstr="ar1")
-#   mod02 = geeglm(NightPres~mSpline(MoonPhase,
-#                                    knots=quantile(masterLun$MoonPhase,probs=unlist(knots[2])),
-#                                    Boundary.knots=c(min(masterLun$MoonPhase),max(masterLun$MoonPhase)),
-#                                    periodic=T),
-#                  family=binomial,data=masterLun,id=GroupID,corstr="ar1")
-#   QICMoonPhase = c(QIC(mod01)[[1]],QIC(mod02)[[1]])
-#   
-#   # Test whether to include Apparent Magnitude as a linear or a smooth term:
-#   mod03 = geeglm(NightPres~MoonMag,family=binomial,data=masterLun,id=GroupID,corstr="ar1")
-#   mod04 = geeglm(NightPres~mSpline(MoonMag,
-#                                   knots=quantile(masterLun$MoonMag,probs=unlist(knots[1])),
-#                                   Boundary.knots=c(min(masterLun$MoonMag),max(masterLun$MoonMag))),
-#                  family=binomial,data=masterLun,id=GroupID,corstr="ar1")
-#   mod05 = geeglm(NightPres~mSpline(MoonMag,
-#                                   knots=quantile(masterLun$MoonMag,probs=unlist(knots[2])),
-#                                   Boundary.knots=c(min(masterLun$MoonMag),max(masterLun$MoonMag))),
-#                  family=binomial,data=masterLun,id=GroupID,corstr="ar1")
-#   QICMoonMag = c(QIC(mod03)[[1]],QIC(mod04)[[1]],QIC(mod05)[[1]])
-# 
-#   # Test whether to include Moon Altitude as a linear or a smooth term:
-#   mod06 = geeglm(NightPres~MoonAltitude,family=binomial,data=masterLun,id=GroupID,corstr="ar1")
-#   mod07 = geeglm(NightPres~mSpline(MoonAltitude,
-#                                    knots=quantile(masterLun$MoonAltitude,probs=unlist(knots[1])),
-#                                    Boundary.knots=c(min(masterLun$MoonAltitude),max(masterLun$MoonAltitude))),
-#                  family=binomial,data=masterLun,id=GroupID,corstr="ar1")
-#   mod08 = geeglm(NightPres~mSpline(MoonAltitude,
-#                                    knots=quantile(masterLun$MoonAltitude,probs=unlist(knots[2])),
-#                                    Boundary.knots=c(min(masterLun$MoonAltitude),max(masterLun$MoonAltitude))),
-#                  family=binomial,data=masterLun,id=GroupID,corstr="ar1")
-#   QICMoonAltitude = c(QIC(mod06)[[1]],QIC(mod07)[[1]],QIC(mod08)[[1]])
-# 
-#   # # Test how many knots to use for Julian Day (not doing linear cause it should be cyclic)
-#   # mod04 = geeglm(Presence~mSpline(JulianDay,
-#   #                                 knots=quantile(thisSite$JulianDay, probs=unlist(knots[1])),
-#   #                                 Boundary.knots=c(1,365),
-#   #                                 periodic=T),
-#   #                family=binomial,data=thisSite,id=GroupID,corstr="ar1")
-#   # mod05 = geeglm(Presence~mSpline(JulianDay,
-#   #                                 knots=quantile(thisSite$JulianDay, probs=unlist(knots[2])),
-#   #                                 Boundary.knots=c(1,365),
-#   #                                 periodic=T),
-#   #                family=binomial,data=thisSite,id=GroupID,corstr="ar1")
-#   # QICJD = c(QIC(mod04)[[1]],QIC(mod05)[[1]])
-#   #
-#   #
-#   # numKnots_QIC_Comp[i,] = cbind(QIC(mod01)[[1]],QIC(mod02)[[1]],QIC(mod03)[[1]],
-#   #                      QIC(mod04)[[1]],QIC(mod05)[[1]])
-#   LunKnots_QIC_Comp[i,] = cbind(QIC(mod01)[[1]],QIC(mod02)[[1]],QIC(mod03)[[1]],
-#                        QIC(mod04)[[1]],QIC(mod05)[[1]],QIC(mod06)[[1]])
-# 
-# }
-# 
-# BestLunIllum = data.frame(colnames(LunKnots_QIC_Comp)[unlist(data.frame(apply(LunKnots_QIC_Comp[,1:3],1,which.min)))])
-# colnames(BestLunIllum) = "BestModel"
-# BestMoonPropUp = data.frame(colnames(LunKnots_QIC_Comp)[(unlist(data.frame(apply(LunKnots_QIC_Comp[,4:5],1,which.min))))+3])
-# colnames(BestMoonPropUp) = "BestModel"
-# # BestJD = data.frame(colnames(numKnots)[unlist(data.frame(apply(numKnots[,4:5],1,which.min)))+3])
-# # colnames(BestJD) = "BestModel"
-# # save(dfList,numKnots_QIC_Comp,BestLun,BestJD,file=paste(outDir,"/SmoothFitEval.Rdata",sep=""))
-# save(dfList,LunKnots_QIC_Comp,BestLunIllum,BestMoonPropUp,file=paste(outDir,"/SmoothFitEval_Lun.Rdata",sep=""))
-
-
 ##### CREATE MODELS USING FIXED SPLINES --------------------------
 
-### JD Models --------------------------
-# for (i in 1:numel(dfList)){
-# 
+### JD, Yr, NormTime Models --------------------------
+for (i in 1:numel(dfList)){
+
 # # load file
 # thisSite = data.frame(read.csv(dfList[i]))
 # CTname = str_remove(dfList[i],paste(modelDFDir,'/',sep="")) # get the species/CT name
@@ -144,51 +38,102 @@ lunList = list.files(path=modelDFDir,pattern=paste('*',int,'_MasterLun.csv',sep=
 #   CTname = "Gervais"
 # }
 # 
-# 
 # # Fit JD + Year GEEGLM:
 # 
-# if (site=="HAT"){ # for HAT, only model 2017-2019
+# if (site=="HAT"){ # for HAT only model 2017-2019
 #   startInd = which(thisSite$StudyYear>1)
-#   thisSiteTruncated = thisSite[startInd,]
+#   #thisSiteTruncated = thisSite[startInd,]
+#   JDs = mSpline(thisSite$JulianDay[startInd],
+#                 knots=quantile(thisSite$JulianDay[startInd],probs=c(0.275,0.5,0.725)),
+#                 Boundary.knots=c(1,365),
+#                 periodic=T)
+#   NTs = mSpline(thisSite$NormTime[startInd],
+#                 knots=quantile(thisSite$NormTime[startInd],probs=c(0.275,0.5,0.725)),
+#                 Boundary.knots=c(-1,1),
+#                 periodic=T)
+#   YrF = as.factor(thisSite$StudyYear[startInd])
+#   Pres = thisSite$Presence[startInd]
+#   GroupID = thisSite$GroupID[startInd]
 # 
-#   tempMod = geeglm(Presence~mSpline(JulianDay,
-#                                     knots=quantile(JulianDay,probs=c(0.275,0.5,0.725)),
-#                                     Boundary.knots=c(1,365),
-#                                     periodic=T)
-#                    +as.factor(DayPhase)
-#                    +as.factor(StudyYear),
+# } else { # otherwise use all data
+#   Pres = thisSite$Presence
+#   GroupID = thisSite$GroupID
+#   JDs = mSpline(thisSite$JulianDay,
+#                 knots=quantile(thisSite$JulianDay,probs=c(0.275,0.5,0.725)),
+#                 Boundary.knots=c(1,365),
+#                 periodic=T)
+#   NTs = mSpline(thisSite$NormTime,
+#                 knots=quantile(thisSite$NormTime,probs=c(0.275,0.5,0.725)),
+#                 Boundary.knots=c(-1,1),
+#                 periodic=T)
+#   YrF = as.factor(thisSite$StudyYear)
+# }
+# 
+#   tempMod = geeglm(Pres~JDs
+#                    # +mSpline(numDayPhase,
+#                    #          knots=quantile(numDayPhase,probs=c(0.333,0.666)),
+#                    #          Boundary.knots=c(0.5,4.5),
+#                    #          periodic=T)
+#                    +NTs
+#                    # +as.factor(DayPhase)
+#                    +YrF,
 #                    family=binomial,
-#                    data=thisSiteTruncated,
+#                    #data=thisSite,
 #                    id=GroupID,
 #                    corstr="ar1")
 # 
-# } else {
-# 
-#   tempMod = geeglm(Presence~mSpline(JulianDay,
-#                                     knots=quantile(JulianDay,probs=c(0.275,0.5,0.725)),
-#                                     Boundary.knots=c(1,365),
-#                                     periodic=T)
-#                    +as.factor(DayPhase)
-#                    +as.factor(StudyYear),
-#                    family=binomial,
-#                    data=thisSite,
-#                    id=GroupID,
-#                    corstr="ar1")
-#   }
 # 
 # 
 # 
 # PV = getPvalues(tempMod)
-# sinkName = paste(outDir,'/',CTname,'/',site,"_",int,"_GEEGLMSummary_JDYrDP.txt",sep="")
-# sink(sinkName)
-# print(PV)
-# sink()
+# if (sum(PV$'p-value'<0.05)==3){ # if all variables are significant, save
+#   if (tempMod$geese$error==0){ # if model converged, save model and summary
+#     sinkName = paste(outDir,'/',CTname,'/',site,"_",int,"_GEEGLMSummary_JDYrNormTime.txt",sep="")
+#     sink(sinkName)
+#     print(PV)
+#     sink()
+#     save(tempMod,PV,file=paste(outDir,'/',CTname,'/',site,"_",int,"_Model_JDYrNormTime.Rdata",sep=""))
+#   } else { # if model did not converge, don't save model, only summary indicating non-convergence
+#     sinkName = paste(outDir,'/',CTname,'/',site,"_",int,"_GEEGLMSummary_JDYrNormTime.txt",sep="")
+#     sink(sinkName)
+#     print('Model did not converge')
+#     sink()
+#   }
 # 
-# save(tempMod,PV,file=paste(outDir,'/',CTname,'/',site,"_",int,"_Model_JDYrDP.Rdata",sep=""))
+# } else {
+#   while (sum(PV$'p-value'<0.05) < length(PV$'p-value')){
+#     whichVars = which(PV$'p-value'<0.05)
+#     str1 = "tempMod = geeglm(Pres~"
+#     str2 = ""
+#     str3 = ",family=binomial,id=GroupID,corstr='ar1')"
+#     for (j in 1:length(whichVars)){
+#       if(j==1){
+#         str2 = paste(str2,PV$Variable[whichVars[j]],sep="")
+#       } else {
+#         str2 = paste(str2,PV$Variable[whichVars[j]],sep="+")
+#       }
+#     }
+#     modelCall = paste(str1,str2,str3,sep="")
+#     eval(parse(text=modelCall))
+#     PV = getPvalues(tempMod)
+#   }
+#   if (tempMod$geese$error==0){ # if model converged, save model and summary
+#   sinkName = paste(outDir,'/',CTname,'/',site,"_",int,"_GEEGLMSummary_JDYrNormTime.txt",sep="")
+#   sink(sinkName)
+#   print(PV)
+#   sink()
+#   save(tempMod,PV,file=paste(outDir,'/',CTname,'/',site,"_",int,"_Model_JDYrNormTime.Rdata",sep=""))
+#   } else { # if model did not converge, don't save model, only summary indicating non-convergence
+#     sinkName = paste(outDir,'/',CTname,'/',site,"_",int,"_GEEGLMSummary_JDYrNormTime.txt",sep="")
+#     sink(sinkName)
+#     print('Model did not converge')
+#     sink()
+#   }
 # }
+}
 
 ### Lunar Models ------------------
-for (i in 57:numel(lunList)){
+for (i in 1:numel(lunList)){
 
   masterLun = data.frame(read.csv(lunList[i]))
   CTname = str_remove(lunList[i],paste(modelDFDir,'/',sep="")) # get the species/CT name
@@ -199,84 +144,100 @@ for (i in 57:numel(lunList)){
     CTname = "Gervais"
   }
 
-  # # Round Proportion of Presence to get it Poisson distributed
-  # masterLun$PropPres = round(masterLun$PropPres*100,digits=0)
-
-  # # masterLun$MoonMag[is.na(masterLun$MoonMag)] = -3.5
-  # # masterLun$MoonAltitude[masterLun$MoonAltitude<0] = -1
-  # # masterLun$MoonAltitude[is.na(masterLun$MoonAltitude)] = -1
-  # keepInd = intersect(which(masterLun$MoonPres=="MoonUp"),
-  #                     which(!is.na(masterLun$MoonAltitude)))
-  # keepInd = intersect(keepInd,which(!is.na(masterLun$MoonMag)))
-  # masterLun = masterLun[keepInd,]
   masterLun$MoonAltitude = masterLun$MoonAltitude*(180/pi) # convert altitude from radians to degrees
 
   # Fit GEEGLM:
   if (site=="HAT"){
 
     startInd = which(masterLun$NightBinTimes>=as.POSIXct('2017-05-01 00:00:00',format="%Y-%m-%d %H:%M:%S",tz="GMT"))
-    masterLunTruncated = masterLun[startInd,]
+    NightPres = masterLun$NightPres[startInd]
+    GroupID = masterLun$GroupID[startInd]
+    MPhs = mSpline(masterLun$MoonPhase[startInd],
+                   knots=quantile(masterLun$MoonPhase[startInd],probs=c(0.275,0.5,0.725)),
+                   Boundary.knots=c(0,1),
+                   periodic=T)
+    MAs = mSpline(masterLun$MoonAltitude[startInd],
+                  knots=quantile(masterLun$MoonAltitude[startInd],probs=c(0.333,0.666)),
+                  Boundary.knots=c(min(masterLun$MoonAltitude[startInd]),max(masterLun$MoonAltitude[startInd])))
+    MPrF = as.factor(masterLun$MoonPres[startInd])
 
-    lunMod = geeglm(NightPres~mSpline(MoonPhase,
-                                      knots=quantile(MoonPhase,probs=c(0.333,0.666)),
-                                      Boundary.knots=c(0,1),
-                                      periodic=T)
-                    # ~mSpline(MoonMag,
-                    #          knots=c(-9.5,-6.5),
-                    #          Boundary.knots=c(-13,-3.5))
-                    +mSpline(MoonAltitude,
-                             knots=quantile(MoonAltitude,probs=c(0.333,0.666)),
-                             Boundary.knots=c(min(MoonAltitude),max(MoonAltitude))),
-                    # +as.factor(MoonPres),
-                    family=binomial,
-                    data=masterLunTruncated,
-                    id=GroupID,
-                    corstr="ar1")
-    if(lunMod$geese$error==0){
-      LunPV = getPvalues(lunMod)
-      sinkName = paste(outDir,'/',CTname,'/',site,"_",int,"_GEEGLMSummary_LunPhaseAlt.txt",sep="")
+  } else {
+    NightPres = masterLun$NightPres
+    GroupID = masterLun$GroupID
+    MPhs = mSpline(masterLun$MoonPhase,
+                  knots=quantile(masterLun$MoonPhase,probs=c(0.275,0.5,0.725)),
+                  Boundary.knots=c(0,1),
+                  periodic=T)
+    MAs = mSpline(masterLun$MoonAltitude,
+                  knots=quantile(masterLun$MoonAltitude,probs=c(0.333,0.666)),
+                  Boundary.knots=c(min(masterLun$MoonAltitude),max(masterLun$MoonAltitude)))
+    MPrF = as.factor(masterLun$MoonPres)
+
+  }
+
+  lunMod = geeglm(NightPres
+                  ~ MPhs
+                  + MAs
+                  + MPrF,
+                  family=binomial(link="logit"),
+                  id=GroupID,
+                  corstr="ar1")
+
+
+  PV = getPvalues(lunMod)
+  if (sum(PV$'p-value'<0.05)==3){ # if all terms are significant, save
+    if (lunMod$geese$error==0){ # if model converged, save model and summary
+      sinkName = paste(outDir,'/',CTname,'/',site,"_",int,"_GEEGLMSummary_LunPhaseAltPres.txt",sep="")
       sink(sinkName)
-      print(LunPV)
+      print(PV)
       sink()
-      save(lunMod,LunPV,file=paste(outDir,'/',CTname,'/',site,"_",int,"_Model_LunPhaseAlt.Rdata",sep=""))
-    } else {
-      sinkName = paste(outDir,'/',CTname,'/',site,"_",int,"_GEEGLMSummary_LunPhaseAlt.txt",sep="")
+      save(lunMod,PV,file=paste(outDir,'/',CTname,'/',site,"_",int,"_Model_LunPhaseAltPres.Rdata",sep=""))
+    } else { # if model did not converge, don't save model, only summary indicating non-convergence
+      sinkName = paste(outDir,'/',CTname,'/',site,"_",int,"_GEEGLMSummary_LunPhaseAltPres.txt",sep="")
       sink(sinkName)
       print('Model did not converge')
       sink()
     }
+
   } else {
-    lunMod = geeglm(NightPres
-                    ~mSpline(MoonPhase,
-                             knots=quantile(MoonPhase,probs=c(0.333,0.666)),
-                             Boundary.knots=c(0,1),
-                             periodic=T)
-                    # ~mSpline(MoonMag,
-                    #          knots=c(-9.5,-6.5),
-                    #          Boundary.knots=c(min(MoonMag),max(MoonMag)))
-                    +mSpline(MoonAltitude,
-                             knots=quantile(MoonAltitude,probs=c(0.333,0.666)),
-                             Boundary.knots=c(min(MoonAltitude),max(MoonAltitude))),
-                    # +as.factor(MoonPres),
-                    family=binomial(link="logit"),
-                    data=masterLun,
-                    id=GroupID,
-                    corstr="ar1")
-    if(lunMod$geese$error==0){
-      LunPV = getPvalues(lunMod)
-      sinkName = paste(outDir,'/',CTname,'/',site,"_",int,"_GEEGLMSummary_LunPhaseAlt.txt",sep="")
+    if (any(PV$'p-value'<0.05)){ # if there are both significant and non-significant terms
+    while (any(PV$'p-value'>=0.05) & length(PV$'p-value')>1){ # re-formulate model until only significant terms remain
+      whichVars = which(PV$'p-value'<0.05)
+      if (!is_empty(whichVars)){
+      str1 = "lunMod = geeglm(NightPres~"
+      str2 = ""
+      str3 = ",family=binomial,id=GroupID,corstr='ar1')"
+      for (j in 1:length(whichVars)){
+        if(j==1){
+          str2 = paste(str2,PV$Variable[whichVars[j]],sep="")
+        } else {
+          str2 = paste(str2,PV$Variable[whichVars[j]],sep="+")
+        }
+      }
+      modelCall = paste(str1,str2,str3,sep="")
+      eval(parse(text=modelCall))
+      PV = getPvalues(lunMod)
+      }
+    }
+    }
+    if (sum(PV$'p-value'<=0.05)==length(PV$'p-value') & lunMod$geese$error==0){ # if model converged, save model and summary
+      sinkName = paste(outDir,'/',CTname,'/',site,"_",int,"_GEEGLMSummary_LunPhaseAltPres.txt",sep="")
       sink(sinkName)
-      print(LunPV)
+      print(PV)
       sink()
-      save(lunMod,LunPV,file=paste(outDir,'/',CTname,'/',site,"_",int,"_Model_LunPhaseAlt.Rdata",sep=""))
-    } else {
-      sinkName = paste(outDir,'/',CTname,'/',site,"_",int,"_GEEGLMSummary_LunPhaseAlt.txt",sep="")
+      save(lunMod,PV,file=paste(outDir,'/',CTname,'/',site,"_",int,"_Model_LunPhaseAltPres.Rdata",sep=""))
+    } else if (sum(PV$'p-value'<=0.05)==length(PV$'p-value') & lunMod$geese$error==1) { # if model did not converge, don't save model, only summary indicating non-convergence
+      sinkName = paste(outDir,'/',CTname,'/',site,"_",int,"_GEEGLMSummary_LunPhaseAltPres.txt",sep="")
       sink(sinkName)
       print('Model did not converge')
+      sink()
+    } else if (sum(PV$'p-value'<=0.05)==0){
+      sinkName = paste(outDir,'/',CTname,'/',site,"_",int,"_GEEGLMSummary_LunPhaseAltPres.txt",sep="")
+      sink(sinkName)
+      print('No significant variables')
       sink()
     }
   }
-
 }
 
 
