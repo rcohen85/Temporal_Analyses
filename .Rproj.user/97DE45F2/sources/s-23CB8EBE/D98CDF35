@@ -1,0 +1,26 @@
+{
+    "id": "D98CDF35",
+    "path": "D:/Code/Temporal_Analyses/Covar_hists.R",
+    "project_path": "Covar_hists.R",
+    "type": "r_source",
+    "hash": "3571126071",
+    "contents": "",
+    "dirty": false,
+    "created": 1648507931496.0,
+    "source_on_save": false,
+    "relative_order": 1,
+    "properties": {
+        "source_window_id": "",
+        "Source": "Source",
+        "cursorPosition": "199,0",
+        "scrollLine": "168"
+    },
+    "folds": "",
+    "lastKnownWriteTime": 1648508161,
+    "encoding": "UTF-8",
+    "collab_server": "",
+    "source_window": "",
+    "last_content_update": 1648508161394,
+    "read_only": false,
+    "read_only_alternatives": []
+}
