@@ -14,9 +14,10 @@ int = "5minBin"
 start = '2016-05-01 00:00:00'
 end = '2019-04-30 23:59:59'
 goodIdx = c(1,2,4,8,11,13:19)
-goodSite = list(c(8:10),c(8:10),c(),c(1:7),c(),c(),c(),c(1,4:11),c(),c(),c(1:11),
+goodSite = list(c(8:10),c(8:10),c(),c(1:8,10),c(),c(),c(),c(7:11),c(),c(),c(1:11),
                 c(),c(1:6),c(1:11),c(1:6),
-                c(1:11),c(1:11),c(1:11),c(1:6))
+                c(1:11),c(1:11),c(1:11),c(1:6,8,11))
+
 
 
 lats = as.numeric(c(41.06165,40.22999,39.83295,
@@ -74,13 +75,13 @@ for (i in goodIdx){  # for each species' file
       pres = which(numClicks>=20) # consider BWs/Kogia/Pm "present" if more than 20 clicks in bin
     }
     
-    if (!numel(pres)==0){ # if there is any presence
+    if (numel(pres)>=100){ # if there are at least 100 bins with presence
       
       Presence = rep(0,length(numClicks))
       Presence[pres] = 1
       
       # Determine autocorrelation and create grouping variable for GEEGLMs
-      corr = acf(Presence[1:50000],lag.max=1500,na.action=na.exclude,plot=FALSE) 
+      corr = acf(Presence[1:150000],lag.max=1500,na.action=na.exclude,plot=FALSE) 
       lagID = which(abs(corr$acf)<0.2) # determine lag at which autocorrelation is <0.2
       numClust = length(numClicks)/(lagID[1]-1)
       if (numClust<length(numClicks)){
@@ -163,9 +164,9 @@ for (i in goodIdx){  # for each species' file
         colnames(master) = c("Presence","TimeStamp","GroupID","JulianDay","Year","StudyYear","NormTime","DayPhase","LunarIllum","HATSite")
       }
       
-      # # save as a .csv
-      # saveName = paste(tsDir,'/',CTname,'_at_',sites[j],"_",int,'_Master.csv',sep="")
-      # write.csv(master,saveName,row.names=FALSE)
+      # save as a .csv
+      saveName = paste(tsDir,'/',CTname,'_at_',sites[j],"_",int,'_Master.csv',sep="")
+      write.csv(master,saveName,row.names=FALSE)
       
       ### Create separate data frames for modeling nighttime presence relative to lunar variables -----
       
@@ -196,7 +197,7 @@ for (i in goodIdx){  # for each species' file
         
         thisDay = which(nightBinDays==k) # which bins fall on this day
         
-        if (length(thisRise)>0 & length(thisSet)>0){ # if the moon both rises and sets on this day
+        if (length(thisRise)>0 & length(thisSet)>0){ # if the moon both rises and sets in this night
           # which bins on this day are before moon rise
           preMoon = which(nightBins[thisDay]<thisRise)
           moonPres[thisDay[preMoon]] = "Pre"
@@ -206,21 +207,21 @@ for (i in goodIdx){  # for each species' file
           # which bins on this day are after moon set
           postMoon = which(nightBins[thisDay]>thisSet)
           moonPres[thisDay[postMoon]] = "Post"
-        } else if (length(thisRise)>0 & length(thisSet)==0){ # if the moon rises on this day, but doesn't set
+        } else if (length(thisRise)>0 & length(thisSet)==0){ # if the moon rises in this night, but doesn't set (sets after sunrise)
           # which bins on this day are before moon rise
           preMoon = which(nightBins[thisDay]<thisRise)
           moonPres[thisDay[preMoon]] = "Pre"
           # remainder of bins are during moon up
           moonUp = setdiff(1:length(thisDay),preMoon)
           moonPres[thisDay[moonUp]] = "MoonUp"
-        }  else if (length(thisRise)==0 & length(thisSet)>0){ # if the moon doesn't rise on this day, but does set
+        }  else if (length(thisRise)==0 & length(thisSet)>0){ # if the moon doesn't rise in this night, but does set (rose prior to sunset)
           # which bins on this day are after moon set
           postMoon = which(nightBins[thisDay]>thisSet)
           moonPres[thisDay[postMoon]] = "Post"
           # remainder of bins are during moon up
           moonUp = setdiff(1:length(thisDay),postMoon)
           moonPres[thisDay[moonUp]] = "MoonUp"
-        } else if (length(thisRise)==0 & length(thisSet)==0){ # if the moon doesn't rise or set on this day? 
+        } else if (length(thisRise)==0 & length(thisSet)==0){ # if the moon doesn't rise or set in this night? 
           moonPres[thisDay] = "UhOh"
         }
       }
