@@ -1,0 +1,4 @@
+"0","year = runif(3000,2011,2019)"
+"0",""
+"0","year_mat1 = mSpline(year, knots=quantile(year, probs=c(0.333,0.666)), Boundary.knots=c(2011,2019))"
+"0","matplot(year, year_mat1, type = ""p"", pch = '.', ylab = ""y"", main = ""as in NP's GEEGLMs"")"

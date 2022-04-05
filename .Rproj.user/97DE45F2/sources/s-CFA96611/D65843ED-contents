@@ -1,0 +1,105 @@
+library(ncdf4)
+library(ggplot2)
+library(EFDR)
+# # library(landsat)
+# source("slopeasp_RC.R")
+# source("movingwindow_RC.R")
+# library(sp)
+library(insol)
+
+
+file = 'J:/Chpt_3/GEBCO/gebco_2021_n44.0_s24.0_w-82.0_e-63.0.nc'
+ncid = nc_open(file)
+
+elev = t(ncvar_get(ncid,'elevation'))
+lat = ncvar_get(ncid,'lat')
+lon = ncvar_get(ncid,'lon')
+
+# downsample data to 0.08x0.08 deg grid
+thisData = data.frame(z=stack(data.frame(elev))[,1],
+                      y=rep(lat,length.out=length(lon)*length(lat)),
+                      x=rep(lon,each=length(lat)))
+
+newx = seq(278,297,by=0.08)
+newy = seq(24,44,by=0.08)
+newGrid2 = regrid(thisData,n1=length(newx),n2=length(newy),method="idw")
+colnames(newGrid2) = c("Lon","Lat","Depth")
+save(newGrid2,file=('J:/Chpt_3/GEBCO/DownsampledGrid_T.Rdata'))
+ggplot(newGrid,aes(x=Lon,y=Lat))+geom_tile(aes(fill=Depth))
+depthData = matrix(newGrid$Depth,ncol=length(newx),byrow=TRUE)
+
+# re-grid data to equally-spaced grid with known resolution in m
+data_sf = st_as_sf(thisData,coords=c("x","y"),crs=CRS('+proj=longlat +datum=WGS84'))
+data_sf %>% st_transform(5514)
+grid_spacing <- 8000  # size of squares, in units of the CRS (i.e. meters for 5514)
+newGrid_sf = st_make_grid(data_sf,square=TRUE,cellsize=c(grid_spacing,grid_spacing))%>%st_sf()
+newGrid_sf %>% st_transform(crs=CRS('+proj=longlat +datum=WGS84'))
+newGridDF = st_coordinates(newGrid_sf)
+
+# get x/y/z components of unit vector normal to each grid point
+depthRast = raster(depthData,
+                   xmn=min(newx),xmx=max(newx),
+                   ymn=min(newy),ymx=max(newy),
+                   crs=CRS('+proj=longlat +datum=WGS84'))
+plot(depthRast)
+
+g = cgrad_RC(depthRast)
+
+# calculate slope
+# floorSlope = slope(g,degrees=TRUE)
+floorSlope = degrees(acos(g[,,3]))
+slopeDF = data.frame(z=stack(data.frame(floorSlope))[,1],
+                       y=rep(newy,length.out=length(newx)*length(newy)),
+                       x=rep(newx,each=length(newy)))
+ggplot(slopeDF,aes(x=x,y=y))+geom_tile(aes(fill=z))
+
+# calculate aspect
+# floorAspect = aspect(g,degrees=TRUE)
+floorAspect = (pi/2) - atan2(g[,,2],g[,,1])
+floorAspect[floorAspect<0] = floorAspect[floorAspect<0]+(2*pi)
+floorAspect = degrees(floorAspect)
+aspectDF = data.frame(z=stack(data.frame(floorAspect))[,1],
+                      y=rep(newy,length.out=length(newx)*length(newy)),
+                      x=rep(newx,each=length(newy)))
+ggplot(aspectDF,aes(x=x,y=y))+geom_tile(aes(fill=z))
+
+# Grab data points nearest to each HARP site, save time series
+
+
+
+
+
+## landsat library approach (incredibly slow with big data!)  ----------------
+# elev = data.frame(t(ncvar_get(ncid,'elevation')))
+# lat = ncvar_get(ncid,'lat')
+# lon = ncvar_get(ncid,'lon')
+# elDF = data.frame(data=stack(elev)[,1],
+#                     lat=rep(lat,length.out=length(lon)*length(lat)),
+#                   lon=rep(lon,each=length(lat)))
+# # ggplot(elDF,aes(x=x,y=y))+geom_tile(aes(fill=z))
+# 
+# # Convert to a SpatialPointsDataFrame
+# coordinates(elDF) = ~lat+lon
+# proj4string(elDF) = CRS('+proj=longlat +datum=WGS84 +units=m')
+# 
+# # Source: https://stackoverflow.com/questions/64380342/turn-spatialpointsdataframe-to-spatialgriddataframe
+# # Transform to a SpatialPixelsDataFrame
+# SGDF = as(elDF,'SpatialPixelsDataFrame')
+# # Transform to a SpatialGridDataFrame
+# SGDF = as(SGDF,'SpatialGridDataFrame')
+# 
+# # Calculate slope and aspect
+# SA = slopeasp_RC(SGDF)
+# 
+# slope = matrix(unlist(SA$slope$data),ncol=length(lon),byrow=TRUE)
+# aspect = matrix(unlist(SA$aspect$data),ncol=length(lon),byrow=TRUE)
+# 
+# slopeDF = data.frame(data=stack(data.frame(slope))[,1],
+#                      lat=rep(lat,length.out=length(lon)*length(lat)),
+#                      lon=rep(lon,each=length(lat)))
+# # ggplot(slopeDF,aes(x=lon,y=lat))+geom_tile(aes(fill=data))
+# aspectDF = data.frame(data=stack(data.frame(aspect))[,1],
+#                      lat=rep(lat,length.out=length(lon)*length(lat)),
+#                      lon=rep(lon,each=length(lat)))
+# # ggplot(aspectDF,aes(x=lon,y=lat))+geom_tile(aes(fill=data))
+

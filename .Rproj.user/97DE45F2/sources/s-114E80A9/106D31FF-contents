@@ -1,0 +1,678 @@
+# Create a in interactive data visualization using RShiny to display
+# covar data for the Western Atlantic sites
+
+# User interface is what the user interacts with, where inputs and outputs are stored
+# Server is where plots and figures are actually generated, and where reactivity is added
+
+# SETTINGS ---------------------------------------------------------------------
+
+# load libraries
+library(shiny)
+library(leaflet)
+library(leaflet.extras)
+library(shinythemes)
+library(ggplot2)
+library(dplyr)
+library(pracma)
+library(tidyverse)
+library(htmltools)
+library(RColorBrewer)
+library(leaflet.multiopacity)
+library(rlang)
+library(viridis)
+library(shinyalert)
+library(readxl)
+source("addLegend_decreasing.r")
+
+#load data
+HARPs = read.csv("HARPs.csv")
+obs = read.csv("obs_df.csv")
+colnames(obs) = c("scientific", "common", "latitude", "longitude", "obs_date")
+acoustic = read.csv("acoustic_df.csv")
+acoustic = subset(acoustic, !is.na(acoustic$Presence))
+acoustic$Presence = signif(((acoustic$Presence)/12),digits=3)
+
+
+# UI ---------------------------------------------------------------------------
+ui <- fluidPage(
+  
+  # choose a CSS theme
+  theme = shinytheme("superhero"),
+  
+  # create a nav bar, give the app a main title
+  navbarPage("Shiny App",
+             
+             
+             # ADD THE FIRST TAB PANEL
+             
+             tabPanel("Interactive Map",
+                      tags$h2("Visualize Species Presence", align = "center"),
+                      fluidRow(
+                        column(3, wellPanel(
+                          # add button for help popup
+                          actionButton("help", "More Info",
+                                       width = '150px',
+                                       style='height: 30px; border-color: #565655;
+                                       background-color: #F47831;
+                                       padding:3px; font-size: 70%'),
+                          
+                          # add slider bar for time
+                          dateInput(inputId = "date",
+                                    "Choose Date:",
+                                    min = as.Date("2016-05-01"),
+                                    max = as.Date("2019-04-30"),
+                                    value = as.Date("2016-05-01")
+                          ),
+                          
+                          # add action button for site markers
+                          actionButton("sites", "Display HARP Sites", width = '150px',
+                                       style='border-color: #565655;
+                                       background-color: #F47831;
+                                       padding:3px; font-size:80%'),
+                          
+                          # add action button to clear site markers
+                          actionButton("clearsites", "Clear HARP Sites",
+                                       width = '150px',
+                                       style='border-color: #565655;
+                                       background-color: #F47831;
+                                       padding:3px; font-size:80%'),
+                          
+                          # add space under action button
+                          tags$h6(""),
+                          
+                          # add input for observational data
+                          selectizeInput("obs", "Display Daily Species Sightings:",
+                                         choices = NULL, multiple = FALSE),
+                          
+                          # add action button to clear observational data
+                          actionButton("clearObs", "Clear Daily Species Sightings",
+                                       width = '150px',
+                                       style='height: 30px; border-color: #565655;
+                                       background-color: #F47831;
+                                       padding:3px; font-size: 70%'),
+                          
+                          # add space under action button
+                          tags$h6(""),
+                          
+                          # add input for acoustic data
+                          selectizeInput("acoustic", "Display Daily Acoustic Presence:",
+                                         choices = NULL,
+                                         multiple = FALSE),
+                          
+                          # add action button to clear acoustic data
+                          actionButton("clearAcoustic", "Clear Daily Acoustic Presence",
+                                       width = '150px',
+                                       style='height: 30px; border-color: #565655;
+                                         background-color: #F47831;
+                                         padding:3px; font-size:70%'),
+                          
+                          # add space under action button
+                          tags$h6(""),
+                          
+                          # add radio buttons to select covariates
+                          radioButtons(inputId="Covar",label="Select Environmental Variable:",
+                                       choices=c("FSLE","Temperature","Salinity","SSH",
+                                                 "U_Velocity", "V_Velocity"),
+                                       selected=character(0)),
+                          
+                          # add action button to clear covars
+                          actionButton("clearCovars", "Clear Environmental Variables",
+                                       width = '150px',
+                                       style='height: 30px; border-color: #565655;
+                                         background-color: #F47831;
+                                         padding:3px; font-size:70%')
+                          
+                        )),
+                        
+                        column(9, 
+                               # # reserve a space for the map on the user interface
+                               # mainPanel(
+                               leafletOutput(outputId = "mymap", width='618px', height='727px')
+                        )
+                      ),
+                      
+                      fluidRow(
+                        column(12, align = "center", wellPanel(
+                          radioButtons("siteimage", "Choose Site:",
+                                       choices = c("HZ","OC","NC","BC","WC","NFC","HAT","GS","BP","BS","JAX"),
+                                       inline = TRUE),
+                          radioButtons("sitecovar", "Select Environmental Variable:",
+                                       choices = c("Temperature","Salinity","SSH","U_Velocity","V_Velocity"),
+                                       inline=TRUE)
+                        ))),
+                      
+                      fluidRow(
+                        column(12,
+                               imageOutput(outputId = "image", width='800px', height='200px')
+                        ))
+             ),
+             
+             
+             # ADD THE SECOND TAB PANEL
+             
+             tabPanel("Citations",
+                      fluidRow(
+                        tags$h2("Citations", align = "center")),
+                      fluidRow(column(4,
+                                      tags$h4("Sighting Data",align="center",style = "color:#F47831"),
+                                      wellPanel(
+                                        tags$p("This observational data was collected by trained observers
+                                                on multiple cruises across the spatial and temporal range of interest."),
+                                        tags$p("Sighting data used was obtained from multiple sources."),
+                                        tags$p("Click the link below to download a .csv file containting citations
+                                               for the sighting datasets used."),
+                                        downloadButton("downloadObsCite", "Download Citations", align = "center",
+                                                       style='width: 225px; height:30px;
+                                                        border-color: #565655;
+                                                        background-color: #F47831;
+                                                        font-size:100%')
+                                      )),
+                               column(4,
+                                      tags$h4("Acoustic Presence Data",align="center",style = "color:#F47831"),
+                                      wellPanel(
+                                        tags$p("Acoustic data was recorded by High-Frequency Acoustic Recording
+                                               Packages (HARPs), deployed at specific sites along the
+                                               western Atlantic coast of the United States."),
+                                        tags$p("Recorded echolocation clicks were used to identify the odontocete species
+                                               present around a given deployment site at a given time."),
+                                        tags$p(""), tags$p(""), tags$p(""),
+                                        imageOutput("logo", height=55, width=225),
+                                        tags$p(""), tags$p(""), tags$p(""), tags$p(""),
+                                        tags$p("Acoustic data was analyzed at Scripps Institution of Oceanography.")
+                                      )),
+                               column(4,
+                                      tags$h4("Covariate Data", align = "center",style = "color:#F47831"),
+                                      wellPanel(
+                                        tags$p("Covariate data was compiled from multiple sources."),
+                                        tags$p(strong("HYCOM"), style='color:#F47831',align = "center"),
+                                        tags$p("Data for Salinity, Temperature, and U and V Velocity was extracted
+                                               from HYCOM modeled data. Visit the HYCOM webpage for more information:"),
+                                        tags$a(href="https://www.hycom.org/","https://www.hycom.org/", style='color:#FFFFFF'),
+                                        tags$p(""),
+                                        tags$p(strong("AVISO +"), style='color:#F47831', align="center"),
+                                        tags$p("Data for FSLE was extracted from Aviso+ Satellite Altimetry Data. Visit the
+                                        AVISO+ webpage for more information:"),
+                                        tags$a(href="https://www.aviso.altimetry.fr/en/home.html",
+                                               "https://www.aviso.altimetry.fr", style='color:#FFFFFF')
+                                      )))
+             )
+  ))
+
+             
+
+
+# SERVER -----------------------------------------------------------------------
+server <- function(input, output, session) {
+  
+  # HELP BUTTON
+  observeEvent(input$help, {
+    shinyalert(text=tags$h5('This tool can be used to view toothed whale
+               species presence data as well as various environmental
+               metrics.', br(),br(), 'Use the calendar to navigate to your date
+               of interest.', br(),br(), 'Show acoustic monitoring sites by clicking the "Show HARP Sites"
+               button.', br(),br(), 'Select particular species to view daily acoustic presence
+               (in hours) or daily visual sightings; acoustic presence bubbles
+               can be clicked to view their exact values.',br(),br(), 'Select an environmental
+               covariate to view a heatmap. Below the map you can view depth
+               profiles of these environmental covariates at each of the acoustic
+               monitoring sites over time.'), html = TRUE,
+               size = "s")
+  })
+  
+  # DoWNLOAD BUTTON FOR CITATIONS
+  output$downloadObsCite =  downloadHandler(
+    filename = 'SightingData_Citations.csv',
+    content = function(file) {
+      citations = read_excel('E:/CovarShinyApp/www/Dataset_Citations.xlsx','Data Sets& Citations')
+      temp = setwd(tempdir())
+      on.exit(setwd(temp))
+      write.csv(citations, file)
+    }
+  )
+  
+  # ADD IN LOGO
+  output$logo = renderImage(list(src='E:/CovarShinyApp/www/swal_logo3_55px.png',
+                                 style='padding-top:5px; padding-bottom:5px'),deleteFile=FALSE)
+  
+  # UPDATE SELECTIZE INPUT
+  updateSelectizeInput(session = session, "obs", 
+                       choices = c("Atlantic Spotted Dolphin",
+                                   "Atlantic White-sided Dolphin",
+                                   "Bottlenose Dolphin",
+                                   "Cuvier's Beaked Whale",
+                                   "Dense-Beaked Whale",
+                                   "Dwarf Sperm Whale",
+                                   "False Killer Whale",
+                                   "Gervais' Beaked Whale",
+                                   "Killer Whale",
+                                   "Long-snouted Spinner Dolphin",
+                                   "North Atlantic Beaked Whale",
+                                   "Pantropical Spotted Dolphin",
+                                   "Pygmy Sperm Whale",
+                                   "Risso's Dolphin",
+                                   "Rough-toothed Dolphin",
+                                   "Short-beaked Common Dolphin",
+                                   "Short-finned Pilot Whale",
+                                   "Short-snouted Spinner Dolphin",
+                                   "Sowerby's Beaked Whale",
+                                   "Sperm Whale",
+                                   "Striped Dolphin",
+                                   "True's Beaked Whale",
+                                   "White-beaked Dolphin"), 
+                       selected = character(0), server = TRUE)
+  updateSelectizeInput(session = session, "acoustic",
+                       choices = c("Gervais' Beaked Whale",
+                                   "Blainville's Beaked Whale",
+                                   "Cuvier's Beaked Whale",
+                                   "Kogia",
+                                   "Risso's Dolphin",
+                                   "Sowerby's Beaked Whale",
+                                   "Sperm Whale",
+                                   "True's Beaked Whale",
+                                   "Short-beaked Common Dolphin",
+                                   "Short-finned Pilot Whale",
+                                   "UD36"),
+                       selected = character(0), server = TRUE)
+  
+  
+  # BASE MAP
+  
+  # create base map for using leaflet, center it at desired lat and lon
+  output$mymap <- renderLeaflet({
+    leaflet() %>%
+      setView(lng = -70, lat = 35, zoom = 4.6) %>%
+      addProviderTiles(providers$Esri.OceanBasemap, layerId = "base")
+  })
+  
+  
+  # OBS DATA
+  
+  #create reactivity for obs data over time
+  obsFilter <- reactive({
+    obs %>%
+      filter(obs$common == input$obs &
+               obs$obs_date == input$date)
+  })
+  
+  # observe layer for obs data reactivity
+  observe({
+    leafletProxy("mymap") %>%
+      clearGroup("sightings")%>%
+      addMapPane("layer1", zIndex=430) %>%
+      addCircles(lat=obsFilter()$latitude, lng=obsFilter()$longitude,
+                 radius = 5,
+                 color = "orange",
+                 group = "sightings",
+                 options = pathOptions(pane="layer1"))
+  })
+  
+  # clear observational data
+  observeEvent(input$clearObs, {
+    leafletProxy("mymap") %>%
+      clearGroup("obs")
+  }
+  )
+  
+  # ACOUSTIC DATA
+  
+  # create reactivity for acoustic data over time
+  acousticFilter <- reactive({
+    acoustic %>%
+      filter(acoustic$Species == input$acoustic &
+               acoustic$Date == input$date)
+  })
+  
+  # observe layer for acoustic data reactivity
+  observe({
+    leafletProxy("mymap") %>%
+      clearGroup("acoustic") %>%
+      addMapPane("layer2", zIndex=420) %>%
+      addCircles(lat = acousticFilter()$Lats,
+                 lng = acousticFilter()$Lons,
+                 radius = (acousticFilter()$Presence)*5000,
+                 color = "red",
+                 group = "acoustic",
+                 popup = paste(acousticFilter()$Presence,"hrs"),
+                 options = pathOptions(pane="layer2"))
+  })
+  
+  # clear acoustic data
+  observeEvent(input$clearAcoustic, {
+    leafletProxy("mymap") %>%
+      clearGroup("acoustic")
+  }
+  )
+  
+  
+  #COVAR DATA
+  
+  # create file list containing data for all covars
+  datFileList = list.files(path=paste(getwd(),'/Covars',sep=""),
+                           pattern='_0_', recursive=FALSE,
+                           full.names=TRUE,include.dirs=FALSE,no..=TRUE)
+  
+  # Which covariate and date have the user selected?
+  thisData = reactive({
+    if (!is.null(input$Covar)){
+      thisCovar = which(str_detect(datFileList,input$Covar))
+      covarDates = str_extract(datFileList[thisCovar],"\\d\\d\\d\\d\\d\\d\\d\\d")
+      time_temp = paste(str_sub(covarDates,start=1L,end=4L),'-',
+                        str_sub(covarDates,start=5L,end=6L),'-',
+                        str_sub(covarDates,start=7L,end=8L),sep="")
+      
+      time = as.Date(time_temp,format='%Y-%m-%d',tz="UTC")
+      
+      thisDate = which(time == input$date)
+      FileFilter = thisCovar[thisDate]
+      
+      dataTemp = load(datFileList[FileFilter])
+      thisData = data.frame(data=stack(data.frame(data))[,1],
+                            lat=rep(lats,length.out=length(lons)*length(lats)),
+                            lon=rep(lons-360,each=length(lats)))
+      thisData[thisData == 0] = NA
+      if (input$Covar == "Salinity") {
+        thisData$data[thisData$data < 25] = NA
+      }
+      thisData = subset(thisData, !is.na(data))
+      
+      # thisData = thisData[seq(1,dim(thisData)[1],by=2),]
+    }
+  })
+  
+  # plot filtered covar data
+  observe({
+    if (!is.null(thisData()$data)){
+      
+      pal = colorNumeric(palette="viridis", domain=thisData()$data)
+      
+      legendTitle = switch(input$Covar,
+                           "FSLE" = "FSLE",
+                           "Temperature" = paste("Temperature (",intToUtf8(176),"C)"),
+                           "Salinity" = "Salinity (PPT)",
+                           "SSH" = "SSH (m)",
+                           "U_Velocity" = "U_Velocity (m/s)",
+                           "V_Velocity" = "V_Velocity (m/s)")
+      
+      values = thisData()$data
+      
+      leafletProxy("mymap") %>%
+        clearGroup("heatmaps")  %>%
+        clearControls()%>%
+        addMapPane("layer3", zIndex=410) %>%
+        addCircles(data = thisData(),
+                   radius = 1,
+                   color = ~pal(values),
+                   group = "heatmaps",
+                   options = pathOptions(pane = "layer3")) %>%
+        addLegend_decreasing(pal=pal, values=values, title=legendTitle,decreasing=TRUE)
+    }
+  })
+  
+  # action button to clear covar data
+  observeEvent(input$clearCovars, {
+    leafletProxy("mymap") %>%
+      clearGroup("heatmaps") %>%
+      clearControls()
+  })
+  
+  
+  #HARP SITES
+  
+  #add layer for displaying sites
+  observeEvent(input$sites, {
+    leafletProxy("mymap", session) %>%
+      addLabelOnlyMarkers(
+        lng = HARPs[1,3], lat = HARPs[1,2],
+        label = "HZ",
+        labelOptions = labelOptions(noHide = T, textsize = "10px"),
+        group = "sites"
+      ) %>%
+      addLabelOnlyMarkers(
+        lng = HARPs[2,3], lat = HARPs[2,2],
+        label = "OC",
+        labelOptions = labelOptions(noHide = T, textsize = "10px"),
+        group = "sites"
+      ) %>%
+      addLabelOnlyMarkers(
+        lng = HARPs[3,3], lat = HARPs[3,2],
+        label = "NC",
+        labelOptions = labelOptions(noHide = T, textsize = "10px"),
+        group = "sites"
+      ) %>%
+      addLabelOnlyMarkers(
+        lng = HARPs[4,3], lat = HARPs[4,2],
+        label = "BC",
+        labelOptions = labelOptions(noHide = T, textsize = "10px"),
+        group = "sites"
+      ) %>%
+      addLabelOnlyMarkers(
+        lng = HARPs[5,3], lat = HARPs[5,2],
+        label = "WC",
+        labelOptions = labelOptions(noHide = T, textsize = "10px"),
+        group = "sites"
+      ) %>%
+      addLabelOnlyMarkers(
+        lng = HARPs[6,3], lat = HARPs[6,2],
+        label = "NFC",
+        labelOptions = labelOptions(noHide = T, textsize = "10px"),
+        group = "sites"
+      ) %>%
+      addLabelOnlyMarkers(
+        lng = HARPs[7,3], lat = HARPs[7,2],
+        label = "HAT_A",
+        labelOptions = labelOptions(noHide = T, textsize = "10px"),
+        group = "sites"
+      ) %>%
+      addLabelOnlyMarkers(
+        lng = HARPs[8,3], lat = HARPs[8,2],
+        label = "HAT_B",
+        labelOptions = labelOptions(noHide = T, textsize = "10px"),
+        group = "sites"
+      ) %>%
+      addLabelOnlyMarkers(
+        lng = HARPs[9,3], lat = HARPs[9,2],
+        label = "GS",
+        labelOptions = labelOptions(noHide = T, textsize = "10px"),
+        group = "sites"
+      ) %>%
+      addLabelOnlyMarkers(
+        lng = HARPs[10,3], lat = HARPs[10,2],
+        label = "BP",
+        labelOptions = labelOptions(noHide = T, textsize = "10px"),
+        group = "sites"
+      ) %>%
+      addLabelOnlyMarkers(
+        lng = HARPs[11,3], lat = HARPs[11,2],
+        label = "BS",
+        labelOptions = labelOptions(noHide = T, textsize = "10px"),
+        group = "sites"
+      ) %>%
+      addLabelOnlyMarkers(
+        lng = HARPs[12,3], lat = HARPs[12,2],
+        label = "JAX",
+        labelOptions = labelOptions(noHide = T, textsize = "10px"),
+        group = "sites"
+      )
+  })
+  
+  # add layer to clear sites
+  observeEvent(input$clearsites, {
+    leafletProxy("mymap") %>%
+      clearGroup("sites")
+  }
+  )
+  
+  # DEPTH PROFILES
+  
+  output$image = renderImage({
+    if (input$siteimage == "HZ" & input$sitecovar == "Temperature") {
+      list(src = "E:/CovarShinyApp/www/HZ_Temperature.png", height = 200, width = 836, align = "center")
+    }
+    else if (input$siteimage == "HZ" & input$sitecovar == "Salinity") {
+      list(src = "E:/CovarShinyApp/www/HZ_Salinity.png", height = 200, width = 836, align = "center")
+    }
+    else if (input$siteimage == "HZ" & input$sitecovar == "U_Velocity") {
+      list(src = "E:/CovarShinyApp/www/HZ_U_Velocity.png", height = 200, width = 836, align = "center")
+    }
+    else if (input$siteimage == "HZ" & input$sitecovar == "V_Velocity") {
+      list(src = "E:/CovarShinyApp/www/HZ_V_Velocity.png", height = 200, width = 836, align = "center")
+    }
+    else if (input$siteimage == "HZ" & input$sitecovar == "SSH") {
+      list(src = "E:/CovarShinyApp/www/HZ_SSH.png", height = 200, width = 836, align = "center")
+    }
+    else if (input$siteimage == "OC" & input$sitecovar == "Temperature") {
+      list(src = "E:/CovarShinyApp/www/OC_Temperature.png", height = 200, width = 836, align = "center")
+    }
+    else if (input$siteimage == "OC" & input$sitecovar == "Salinity") {
+      list(src = "E:/CovarShinyApp/www/OC_Salinity.png", height = 200, width = 836, align = "center")
+    }
+    else if (input$siteimage == "OC" & input$sitecovar == "U_Velocity") {
+      list(src = "E:/CovarShinyApp/www/OC_U_Velocity.png", height = 200, width = 836, align = "center")
+    }
+    else if (input$siteimage == "OC" & input$sitecovar == "V_Velocity") {
+      list(src = "E:/CovarShinyApp/www/OC_V_Velocity.png", height = 200, width = 836, align = "center")
+    }
+    else if (input$siteimage == "OC" & input$sitecovar == "SSH") {
+      list(src = "E:/CovarShinyApp/www/OC_SSH.png", height = 200, width = 836, align = "center")
+    }
+    else if (input$siteimage == "NC" & input$sitecovar == "Temperature") {
+      list(src = "E:/CovarShinyApp/www/NC_Temperature.png", height = 200, width = 836, align = "center")
+    }
+    else if (input$siteimage == "NC" & input$sitecovar == "Salinity") {
+      list(src = "E:/CovarShinyApp/www/NC_Salinity.png", height = 200, width = 836, align = "center")
+    }
+    else if (input$siteimage == "NC" & input$sitecovar == "U_Velocity") {
+      list(src = "E:/CovarShinyApp/www/NC_U_Velocity.png", height = 200, width = 836, align = "center")
+    }
+    else if (input$siteimage == "NC" & input$sitecovar == "V_Velocity") {
+      list(src = "E:/CovarShinyApp/www/NC_V_Velocity.png", height = 200, width = 836, align = "center")
+    }
+    else if (input$siteimage == "NC" & input$sitecovar == "SSH") {
+      list(src = "E:/CovarShinyApp/www/NC_SSH.png", height = 200, width = 836, align = "center")
+    }
+    else if (input$siteimage == "BC" & input$sitecovar == "Temperature") {
+      list(src = "E:/CovarShinyApp/www/BC_Temperature.png", height = 200, width = 836, align = "center")
+    }
+    else if (input$siteimage == "BC" & input$sitecovar == "Salinity") {
+      list(src = "E:/CovarShinyApp/www/BC_Salinity.png", height = 200, width = 836, align = "center")
+    }
+    else if (input$siteimage == "BC" & input$sitecovar == "U_Velocity") {
+      list(src = "E:/CovarShinyApp/www/BC_U_Velocity.png", height = 200, width = 836, align = "center")
+    }
+    else if (input$siteimage == "BC" & input$sitecovar == "V_Velocity") {
+      list(src = "E:/CovarShinyApp/www/BC_V_Velocity.png", height = 200, width = 836, align = "center")
+    }
+    else if (input$siteimage == "BC" & input$sitecovar == "SSH") {
+      list(src = "E:/CovarShinyApp/www/BC_SSH.png", height = 200, width = 836, align = "center")
+    }
+    else if (input$siteimage == "WC" & input$sitecovar == "Temperature") {
+      list(src = "E:/CovarShinyApp/www/WC_Temperature.png", height = 200, width = 836, align = "center")
+    }
+    else if (input$siteimage == "WC" & input$sitecovar == "Salinity") {
+      list(src = "E:/CovarShinyApp/www/WC_Salinity.png", height = 200, width = 836, align = "center")
+    }
+    else if (input$siteimage == "WC" & input$sitecovar == "U_Velocity") {
+      list(src = "E:/CovarShinyApp/www/WC_U_Velocity.png", height = 200, width = 836, align = "center")
+    }
+    else if (input$siteimage == "WC" & input$sitecovar == "V_Velocity") {
+      list(src = "E:/CovarShinyApp/www/WC_V_Velocity.png", height = 200, width = 836, align = "center")
+    }
+    else if (input$siteimage == "WC" & input$sitecovar == "SSH") {
+      list(src = "E:/CovarShinyApp/www/WC_SSH.png", height = 200, width = 836, align = "center")
+    }
+    else if (input$siteimage == "NFC" & input$sitecovar == "Temperature") {
+      list(src = "E:/CovarShinyApp/www/NFC_Temperature.png", height = 200, width = 836, align = "center")
+    }
+    else if (input$siteimage == "NFC" & input$sitecovar == "Salinity") {
+      list(src = "E:/CovarShinyApp/www/NFC_Salinity.png", height = 200, width = 836, align = "center")
+    }
+    else if (input$siteimage == "NFC" & input$sitecovar == "U_Velocity") {
+      list(src = "E:/CovarShinyApp/www/NFC_U_Velocity.png", height = 200, width = 836, align = "center")
+    }
+    else if (input$siteimage == "NFC" & input$sitecovar == "V_Velocity") {
+      list(src = "E:/CovarShinyApp/www/NFC_V_Velocity.png", height = 200, width = 836, align = "center")
+    }
+    else if (input$siteimage == "NFC" & input$sitecovar == "SSH") {
+      list(src = "E:/CovarShinyApp/www/NFC_SSH.png", height = 200, width = 836, align = "center")
+    }
+    else if (input$siteimage == "HAT" & input$sitecovar == "Temperature") {
+      list(src = "E:/CovarShinyApp/www/HAT_Temperature.png", height = 200, width = 836, align = "center")
+    }
+    else if (input$siteimage == "HAT" & input$sitecovar == "Salinity") {
+      list(src = "E:/CovarShinyApp/www/HAT_Salinity.png", height = 200, width = 836, align = "center")
+    }
+    else if (input$siteimage == "HAT" & input$sitecovar == "U_Velocity") {
+      list(src = "E:/CovarShinyApp/www/HAT_U_Velocity.png", height = 200, width = 836, align = "center")
+    }
+    else if (input$siteimage == "HAT" & input$sitecovar == "V_Velocity") {
+      list(src = "E:/CovarShinyApp/www/HAT_V_Velocity.png", height = 200, width = 836, align = "center")
+    }
+    else if (input$siteimage == "HAT" & input$sitecovar == "SSH") {
+      list(src = "E:/CovarShinyApp/www/HAT_SSH.png", height = 200, width = 836, align = "center")
+    }
+    else if (input$siteimage == "GS" & input$sitecovar == "Temperature") {
+      list(src = "E:/CovarShinyApp/www/GS_Temperature.png", height = 200, width = 836, align = "center")
+    }
+    else if (input$siteimage == "GS" & input$sitecovar == "Salinity") {
+      list(src = "E:/CovarShinyApp/www/GS_Salinity.png", height = 200, width = 836, align = "center")
+    }
+    else if (input$siteimage == "GS" & input$sitecovar == "U_Velocity") {
+      list(src = "E:/CovarShinyApp/www/GS_U_Velocity.png", height = 200, width = 836, align = "center")
+    }
+    else if (input$siteimage == "GS" & input$sitecovar == "V_Velocity") {
+      list(src = "E:/CovarShinyApp/www/GS_V_Velocity.png", height = 200, width = 836, align = "center")
+    }
+    else if (input$siteimage == "GS" & input$sitecovar == "SSH") {
+      list(src = "E:/CovarShinyApp/www/GS_SSH.png", height = 200, width = 836, align = "center")
+    }
+    else if (input$siteimage == "BP" & input$sitecovar == "Temperature") {
+      list(src = "E:/CovarShinyApp/www/BP_Temperature.png", height = 200, width = 836, align = "center")
+    }
+    else if (input$siteimage == "BP" & input$sitecovar == "Salinity") {
+      list(src = "E:/CovarShinyApp/www/BP_Salinity.png", height = 200, width = 836, align = "center")
+    }
+    else if (input$siteimage == "BP" & input$sitecovar == "U_Velocity") {
+      list(src = "E:/CovarShinyApp/www/BP_U_Velocity.png", height = 200, width = 836, align = "center")
+    }
+    else if (input$siteimage == "BP" & input$sitecovar == "V_Velocity") {
+      list(src = "E:/CovarShinyApp/www/BP_V_Velocity.png", height = 200, width = 836, align = "center")
+    }
+    else if (input$siteimage == "BP" & input$sitecovar == "SSH") {
+      list(src = "E:/CovarShinyApp/www/BP_SSH.png", height = 200, width = 836, align = "center")
+    }
+    else if (input$siteimage == "BS" & input$sitecovar == "Temperature") {
+      list(src = "E:/CovarShinyApp/www/BS_Temperature.png", height = 200, width = 836, align = "center")
+    }
+    else if (input$siteimage == "BS" & input$sitecovar == "Salinity") {
+      list(src = "E:/CovarShinyApp/www/BS_Salinity.png", height = 200, width = 836, align = "center")
+    }
+    else if (input$siteimage == "BS" & input$sitecovar == "U_Velocity") {
+      list(src = "E:/CovarShinyApp/www/BS_U_Velocity.png", height = 200, width = 836, align = "center")
+    }
+    else if (input$siteimage == "BS" & input$sitecovar == "V_Velocity") {
+      list(src = "E:/CovarShinyApp/www/BS_V_Velocity.png", height = 200, width = 836, align = "center")
+    }
+    else if (input$siteimage == "BS" & input$sitecovar == "SSH") {
+      list(src = "E:/CovarShinyApp/www/BS_SSH.png", height = 200, width = 836, align = "center")
+    }
+    else if (input$siteimage == "JAX" & input$sitecovar == "Temperature") {
+      list(src = "E:/CovarShinyApp/www/JAX_Temperature.png", height = 200, width = 836, align = "center")
+    }
+    else if (input$siteimage == "JAX" & input$sitecovar == "Salinity") {
+      list(src = "E:/CovarShinyApp/www/JAX_Salinity.png", height = 200, width = 836, align = "center")
+    }
+    else if (input$siteimage == "JAX" & input$sitecovar == "U_Velocity") {
+      list(src = "E:/CovarShinyApp/www/JAX_U_Velocity.png", height = 200, width = 836, align = "center")
+    }
+    else if (input$siteimage == "JAX" & input$sitecovar == "V_Velocity") {
+      list(src = "E:/CovarShinyApp/www/JAX_V_Velocity.png", height = 200, width = 836, align = "center")
+    }
+    else if (input$siteimage == "JAX" & input$sitecovar == "SSH") {
+      list(src = "E:/CovarShinyApp/www/JAX_SSH.png", height = 200, width = 836, align = "center")
+    }
+  }, deleteFile=FALSE)
+}
+
+# BUILD THE APP! ---------------------------------------------------------------
+shinyApp(ui, server)
+

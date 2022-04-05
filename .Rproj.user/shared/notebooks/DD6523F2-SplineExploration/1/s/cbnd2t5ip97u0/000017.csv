@@ -1,0 +1,4 @@
+"0",""
+"0","# Increasing degree to get a cubic b-spline:"
+"0","Jday_mat5 <- bs(Jday, knots = knots, degree = 3, intercept = TRUE)"
+"0","matplot(Jday, Jday_mat5, type = ""p"", pch = '.', ylab = ""y"", main = ""b-spline, JDay data, non-cyclic, degree = 3 (cubic)"")"

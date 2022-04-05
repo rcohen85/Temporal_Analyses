@@ -1,0 +1,6 @@
+"0","### example given in the reference paper by Ramsay (1988)"
+"0","# basic m-spline with unevenly-spaced interior knots"
+"0","x <- seq.int(0, 1, 0.01)"
+"0","knots <- c(0.3, 0.5, 0.6)"
+"0","msMat <- mSpline(x, knots = knots, degree = 2, intercept = TRUE)"
+"0","matplot(x, msMat, type = ""l"", ylab = ""y"", ylim = c(0,5), main = ""m-spline, degree = 2"")"

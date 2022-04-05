@@ -1,0 +1,109 @@
+library(stringr)
+library(R.matlab)
+library(lubridate)
+library(EFDR)
+library(rlang)
+
+infolder = 'J:/Chpt_3/HYCOM/DownloadedFiles'
+outfolder = file.path('J:/Chpt_3/HYCOM/0.08deg')
+latrange = c(24,46)
+lonrange = c(-63,-82)
+timerange = c(as.Date('2016/02/01'),as.Date('2019/04/30'))
+depths = c(1,20,23,25,27:31) # indices of depth layers of interest
+newx = seq(278,297,by=0.08) # desired lon vector
+newy = seq(24,44,by=0.08) # desired lat vector
+
+####--------------------------------------------
+
+allfiles = list.files(infolder,pattern = "*.mat",full.names = TRUE,
+                      include.dirs=FALSE,recursive=FALSE)
+lonrange = 360+lonrange
+
+for (i in 849:length(allfiles)){
+  
+  #open a given file as a data frame
+  matdata = data.frame(readMat(allfiles[i]))
+  
+  # get file date from file
+  fileDate = matdata$X1.1$Date
+  # convert from matlab time to UTC
+  times = as.POSIXct((fileDate-719529)*86400,format='%Y-%m-%d',origin='1970-01-01',tz="UTC")
+  
+  if (month(times)<10){
+    monthVal = paste(0,month(times),sep="")
+  } else {
+    monthVal = month(times)
+  }
+  if (day(times)<10){
+    dayVal = paste(0,day(times),sep="")
+  } else {
+    dayVal = day(times)
+  }
+  timeString = paste(year(times),monthVal,dayVal,sep="")
+  
+  #if (times>=timerange[1] & times<=timerange[2]){
+  #get lats
+  templats = matdata$X1.1$Latitude
+  #get lons
+  templons = matdata$X1.1$Longitude
+  # get depths
+  allDepths = abs(matdata$X1.1$Depth)
+  #get other variables
+  tempdata = t(matdata$X1.1$ssh) # SSH
+  tempdata[is.na(tempdata)] = mean(tempdata)
+  U_Velocity = matdata$X1.1$u
+  V_Velocity = matdata$X1.1$v
+  Temperature = matdata$X1.1$temperature
+  Salinity = matdata$X1.1$salinity
+  
+  thisData = data.frame(z=stack(data.frame(tempdata))[,1],
+                        y=rep(templats,length.out=length(templons)*length(templats)),
+                        x=rep(templons,each=length(templats)))
+  # ggplot(thisData,aes(x=x,y=y))+geom_tile(aes(fill=z))
+  
+  # re-grid to consistent 0.08x0.08deg spatial resolution
+  newGrid = regrid(thisData,n1=length(newx),n2=length(newy),method="idw")
+  # ggplot(newGrid,aes(x=x,y=y))+geom_tile(aes(fill=z))
+  data = matrix(newGrid$z,ncol=length(newx),byrow=TRUE)
+  lons = sort(unique(newGrid$x))
+  lats = sort(unique(newGrid$y))
+  
+  # Save SSH, lats, lons
+  saveName = paste(outfolder,'/',"SSH",'_0_',timeString,'.Rdata',sep="")
+  save(data,lats,lons,file=saveName)
+  
+  # which covars have multiple depths
+  deepCovars = list("U_Velocity", "V_Velocity", "Temperature", "Salinity")
+  # deepCovars = list("U_Velocity","Temperature","V_Velocity")
+  
+  # for each covar
+  for (j in 1:length(deepCovars)){
+    if (eval(parse(text=paste('!is_empty(',deepCovars[j],')',sep="")))){
+      thisCovar = deepCovars[j]
+      for (k in depths){
+        tempdata = t(eval(parse(text=paste(thisCovar,'[,,k]',sep=""))))
+        tempdata[is.na(tempdata)] = mean(tempdata)
+        
+        thisData = data.frame(z=stack(data.frame(tempdata))[,1],
+                              y=rep(templats,length.out=length(templons)*length(templats)),
+                              x=rep(templons,each=length(templats)))
+        # ggplot(thisData,aes(x=x,y=y))+geom_tile(aes(fill=z))
+        
+        newGrid = regrid(thisData,n1=length(newx),n2=length(newy),method="idw")
+        # ggplot(newGrid,aes(x=x,y=y))+geom_tile(aes(fill=z))
+        data = matrix(newGrid$z,ncol=length(newx),byrow=TRUE)
+        lons = sort(unique(newGrid$x))
+        lats = sort(unique(newGrid$y))
+        
+        saveName = paste(outfolder,'/',thisCovar,'_',allDepths[k],'_',timeString,'.Rdata',sep="")
+        save(data,lats,lons,file=saveName)
+        
+      }
+    }
+  }
+  
+  if (i%%5==0){
+    message(paste('Done with file ',as.character(i),' out of ',as.character(length(allfiles)),sep=""))
+  }
+  
+}

@@ -1,0 +1,6 @@
+"0",""
+"0","# reduce # of knots to 4"
+"0","knots = seq(1,365,length=4)"
+"0","var_covar_4 = gam(Pres~s(Jday, bs=""cc"", k=4), fit=FALSE, family=poisson, "
+"0","                knots = list(knots))$X[,2:3]"
+"0","matplot(Jday, var_covar_4, type = ""p"", pch = '.', ylab = ""y"", main = ""variance-covariance cubic, k = 4"")"
