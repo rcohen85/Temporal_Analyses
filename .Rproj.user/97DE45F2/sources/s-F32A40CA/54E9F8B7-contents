@@ -14,141 +14,141 @@ source("binned_residuals_RC.R")
 source("r2_tjur_RC.R")
 
 
-modelDFDir = 'J:/Chpt_2/TimeSeries_ScaledByEffortError'
-outDir = 'J:/Chpt_2/ModelOutput'
-int = "5minBin"
-
-dfList = list.files(path=modelDFDir,pattern=paste('*',int,'_Master.csv',sep=""),
-                    full.names=TRUE,recursive=FALSE,
-                    include.dirs=FALSE,no..=TRUE)
-lunList = list.files(path=modelDFDir,pattern=paste('*',int,'_MasterLun.csv',sep=""),
-                     full.names=TRUE,recursive=FALSE,
-                     include.dirs=FALSE,no..=TRUE)
-
-species = list.dirs(outDir,recursive=FALSE)
-tempPerf = data.frame(Species=as.character(),
-                             Site=as.character(),
-                             PropGoodResid=as.numeric(),
-                             R2=as.numeric())
-lunPerf = data.frame(Species=as.character(),
-                      Site=as.character(),
-                      PropGoodResid=as.numeric(),
-                      R2=as.numeric())
+# modelDFDir = 'J:/Chpt_2/TimeSeries_ScaledByEffortError'
+# outDir = 'J:/Chpt_2/ModelOutput'
+# int = "5minBin"
+# 
+# dfList = list.files(path=modelDFDir,pattern=paste('*',int,'_Master.csv',sep=""),
+#                     full.names=TRUE,recursive=FALSE,
+#                     include.dirs=FALSE,no..=TRUE)
+# lunList = list.files(path=modelDFDir,pattern=paste('*',int,'_MasterLun.csv',sep=""),
+#                      full.names=TRUE,recursive=FALSE,
+#                      include.dirs=FALSE,no..=TRUE)
+# 
+# species = list.dirs(outDir,recursive=FALSE)
+# tempPerf = data.frame(Species=as.character(),
+#                              Site=as.character(),
+#                              PropGoodResid=as.numeric(),
+#                              R2=as.numeric())
+# lunPerf = data.frame(Species=as.character(),
+#                       Site=as.character(),
+#                       PropGoodResid=as.numeric(),
+#                       R2=as.numeric())
 
 for ( i in c(1:8,10:numel(species))){
   
-  JDmodFiles = list.files(path=species[i],pattern="*Model_JDNTYr_5I.Rdata",
-                          full.names=TRUE,recursive=FALSE,include.dirs=FALSE,no..=TRUE)
-  LunmodFiles = list.files(path=species[i],pattern="*Model_LunPhaseAltPres.Rdata",
-                           full.names=TRUE,recursive=FALSE,include.dirs=FALSE,no..=TRUE)
-  CTname = str_remove(species[i],paste(outDir,'/',sep=""))
-  
-  sites = list()
+  # JDmodFiles = list.files(path=species[i],pattern="*Model_JDNTYr_5I.Rdata",
+  #                         full.names=TRUE,recursive=FALSE,include.dirs=FALSE,no..=TRUE)
+  # LunmodFiles = list.files(path=species[i],pattern="*Model_LunPhaseAltPres.Rdata",
+  #                          full.names=TRUE,recursive=FALSE,include.dirs=FALSE,no..=TRUE)
+  # CTname = str_remove(species[i],paste(outDir,'/',sep=""))
+  # 
+  # sites = list()
   for (j in 1:numel(JDmodFiles)){
     
-    site = str_remove(JDmodFiles[j],paste(outDir,"/",CTname,"/",sep=""))
-    sites = c(sites,str_remove(site,"_5minBin_Model_JDNTYr_5I.Rdata"))
-    if (sites[j]=="NULL"){
-      stop("Didn't get site name")}
-
-    load(JDmodFiles[j]) # load JD + NormTime + Yr model
+    # site = str_remove(JDmodFiles[j],paste(outDir,"/",CTname,"/",sep=""))
+    # sites = c(sites,str_remove(site,"_5minBin_Model_JDNTYr_5I.Rdata"))
+    # if (sites[j]=="NULL"){
+    #   stop("Didn't get site name")}
+    # 
+    # load(JDmodFiles[j]) # load JD + NormTime + Yr model
 
     if (tempMod$geese$error==0){ # not all models converged, don't plot non-converged models
 
       # find associated master dataframe
-      thisSpec = which(str_detect(dfList,CTname))
-      atSite = which(str_detect(dfList,unlist(sites[j])))
-      thisModInd = intersect(thisSpec,atSite)
-      thisSite = data.frame(read.csv(dfList[thisModInd])) # JD model data frame
-
-      # Indices of coefficients for each covar
-      JDInd = numeric()
-      NTInd = numeric()
-      YrInd = numeric()
-      JDNTInd = numeric()
-      JDInd = which(str_detect(names(tempMod$coefficients),"JDs")&!str_detect(names(tempMod$coefficients),"NTs"))
-      NTInd = which(str_detect(names(tempMod$coefficients),"NTs")&!str_detect(names(tempMod$coefficients),"JDs"))
-      YrInd = c(1,which(str_detect(names(tempMod$coefficients),"YrF")))
-      JDNTInd = which(str_detect(names(tempMod$coefficients),"JDs")&str_detect(names(tempMod$coefficients),"NTs"))
-
-      if (sites[j]=="HAT"){
-        startInd = which(thisSite$TimeStamp>=as.POSIXct('2017-05-01 00:00:00',format="%Y-%m-%d %H:%M:%S",tz="GMT"))
-        thisSite = thisSite[startInd,]
-        if (!isempty(YrInd)){
-          YrInd = c(1,length(coef(tempMod))) # only two years of data at HAT
-        }
-      }
-
-      ## Create model fit plots ---------------------
-      modFit = data.frame(Date=as.Date(thisSite$TimeStamp),
-                          Pres=thisSite$Presence,
-                          Fits=tempMod$fitted.values,
-                          Res=tempMod$residuals)
-
-      PresPlot = ggplot(modFit
-      ) + geom_point(aes(x=Date,y=Pres),
-                     color="#000000",
-                     size=2
-      )+scale_x_continuous(breaks=c(as.Date("2016-05-01"),
-                                    as.Date("2016-11-01"),
-                                    as.Date("2017-05-01"),
-                                    as.Date("2017-11-01"),
-                                    as.Date("2018-05-01"),
-                                    as.Date("2018-11-01"),
-                                    as.Date("2019-04-30"))
-      ) + labs(x="",y="Presence")
-      FitPlot = ggplot(modFit
-      )+geom_point(aes(x=Date,y=Fits),
-                   color="#1976D2",
-                   size=2
-      )+scale_x_continuous(breaks=c(as.Date("2016-05-01"),
-                                    as.Date("2016-11-01"),
-                                    as.Date("2017-05-01"),
-                                    as.Date("2017-11-01"),
-                                    as.Date("2018-05-01"),
-                                    as.Date("2018-11-01"),
-                                    as.Date("2019-04-30"))
-      ) + labs(x="",y="Fitted Values")
-      ModRes = ggplot(modFit
-      ) + geom_point(aes(x=Date,y=Res),
-                     size=2
-      ) +scale_x_continuous(breaks=c(as.Date("2016-05-01"),
-                                     as.Date("2016-11-01"),
-                                     as.Date("2017-05-01"),
-                                     as.Date("2017-11-01"),
-                                     as.Date("2018-05-01"),
-                                     as.Date("2018-11-01"),
-                                     as.Date("2019-04-30"))
-      ) + labs(x="",y="Residuals")
-
-      # HL = hoslem.test(thisSite$Presence,fitted(tempMod))
-      # HLPlot = data.frame(Expected=HL$expected[,1],Observed=HL$observed[,1])
-      # HLPlot$X = seq(min(HL$observed[,1]),max(HL$observed[,1]),length.out=length(HLPlot$Expected))
-      # HLPlot$Y = seq(min(HL$observed[,1]),max(HL$observed[,1]),length.out=length(HLPlot$Expected))
+      # thisSpec = which(str_detect(dfList,CTname))
+      # atSite = which(str_detect(dfList,unlist(sites[j])))
+      # thisModInd = intersect(thisSpec,atSite)
+      # thisSite = data.frame(read.csv(dfList[thisModInd])) # JD model data frame
       # 
-      # ObsPred = ggplot(HLPlot
-      # ) + geom_line(aes(x=X,y=Y)
-      # ) + geom_point(aes(y=Expected,x=Observed)
-      # ) + labs(x="Observed",y="Expected"
-      # ) + annotate("text",
-      #              label=paste('p-value: ',as.character(HL$p.value),sep=""),
-      #              size=4,
-      #              x=1.005*min(HL$observed[,1]),
-      #              y=0.999*max(HL$expected[,1]))
-
-      png(file=paste(outDir,'/',CTname,'/',sites[j],"_ModelFit.png",sep=""),width = 1400, height = 800, units = "px")
-      grid.arrange(PresPlot,FitPlot,ModRes,ncol=1,nrow=3,top=paste(CTname,'at',sites[j]))
-      while (dev.cur()>1) {dev.off()}
-      
-      binRes = binned_residuals_RC(tempMod)
-      resid_ok = sum(binRes$group == "yes")/length(binRes$group)
-      R2 = r2_tjur_RC(tempMod)
-      thisModPer = cbind(CTname,sites[j],round(resid_ok,digits=5),round(as.numeric(R2),digits=5))
-      tempPerf = rbind(tempPerf,thisModPer)
-      
-      png(file=paste(outDir,'/',CTname,'/',sites[j],"_BinResid.png",sep=""),width = 400, height = 300, units = "px")
-      print(binned_residuals_RC(tempMod))
-      while (dev.cur()>1) {dev.off()}
+      # # Indices of coefficients for each covar
+      # JDInd = numeric()
+      # NTInd = numeric()
+      # YrInd = numeric()
+      # JDNTInd = numeric()
+      # JDInd = which(str_detect(names(tempMod$coefficients),"JDs")&!str_detect(names(tempMod$coefficients),"NTs"))
+      # NTInd = which(str_detect(names(tempMod$coefficients),"NTs")&!str_detect(names(tempMod$coefficients),"JDs"))
+      # YrInd = c(1,which(str_detect(names(tempMod$coefficients),"YrF")))
+      # JDNTInd = which(str_detect(names(tempMod$coefficients),"JDs")&str_detect(names(tempMod$coefficients),"NTs"))
+      # 
+      # if (sites[j]=="HAT"){
+      #   startInd = which(thisSite$TimeStamp>=as.POSIXct('2017-05-01 00:00:00',format="%Y-%m-%d %H:%M:%S",tz="GMT"))
+      #   thisSite = thisSite[startInd,]
+      #   if (!isempty(YrInd)){
+      #     YrInd = c(1,length(coef(tempMod))) # only two years of data at HAT
+      #   }
+      # }
+# 
+#       ## Create model fit plots ---------------------
+#       modFit = data.frame(Date=as.Date(thisSite$TimeStamp),
+#                           Pres=thisSite$Presence,
+#                           Fits=tempMod$fitted.values,
+#                           Res=tempMod$residuals)
+# 
+#       PresPlot = ggplot(modFit
+#       ) + geom_point(aes(x=Date,y=Pres),
+#                      color="#000000",
+#                      size=2
+#       )+scale_x_continuous(breaks=c(as.Date("2016-05-01"),
+#                                     as.Date("2016-11-01"),
+#                                     as.Date("2017-05-01"),
+#                                     as.Date("2017-11-01"),
+#                                     as.Date("2018-05-01"),
+#                                     as.Date("2018-11-01"),
+#                                     as.Date("2019-04-30"))
+#       ) + labs(x="",y="Presence")
+#       FitPlot = ggplot(modFit
+#       )+geom_point(aes(x=Date,y=Fits),
+#                    color="#1976D2",
+#                    size=2
+#       )+scale_x_continuous(breaks=c(as.Date("2016-05-01"),
+#                                     as.Date("2016-11-01"),
+#                                     as.Date("2017-05-01"),
+#                                     as.Date("2017-11-01"),
+#                                     as.Date("2018-05-01"),
+#                                     as.Date("2018-11-01"),
+#                                     as.Date("2019-04-30"))
+#       ) + labs(x="",y="Fitted Values")
+#       ModRes = ggplot(modFit
+#       ) + geom_point(aes(x=Date,y=Res),
+#                      size=2
+#       ) +scale_x_continuous(breaks=c(as.Date("2016-05-01"),
+#                                      as.Date("2016-11-01"),
+#                                      as.Date("2017-05-01"),
+#                                      as.Date("2017-11-01"),
+#                                      as.Date("2018-05-01"),
+#                                      as.Date("2018-11-01"),
+#                                      as.Date("2019-04-30"))
+#       ) + labs(x="",y="Residuals")
+# 
+#       # HL = hoslem.test(thisSite$Presence,fitted(tempMod))
+#       # HLPlot = data.frame(Expected=HL$expected[,1],Observed=HL$observed[,1])
+#       # HLPlot$X = seq(min(HL$observed[,1]),max(HL$observed[,1]),length.out=length(HLPlot$Expected))
+#       # HLPlot$Y = seq(min(HL$observed[,1]),max(HL$observed[,1]),length.out=length(HLPlot$Expected))
+#       # 
+#       # ObsPred = ggplot(HLPlot
+#       # ) + geom_line(aes(x=X,y=Y)
+#       # ) + geom_point(aes(y=Expected,x=Observed)
+#       # ) + labs(x="Observed",y="Expected"
+#       # ) + annotate("text",
+#       #              label=paste('p-value: ',as.character(HL$p.value),sep=""),
+#       #              size=4,
+#       #              x=1.005*min(HL$observed[,1]),
+#       #              y=0.999*max(HL$expected[,1]))
+# 
+#       png(file=paste(outDir,'/',CTname,'/',sites[j],"_ModelFit.png",sep=""),width = 1400, height = 800, units = "px")
+#       grid.arrange(PresPlot,FitPlot,ModRes,ncol=1,nrow=3,top=paste(CTname,'at',sites[j]))
+#       while (dev.cur()>1) {dev.off()}
+#       
+#       binRes = binned_residuals_RC(tempMod)
+#       resid_ok = sum(binRes$group == "yes")/length(binRes$group)
+#       R2 = r2_tjur_RC(tempMod)
+#       thisModPer = cbind(CTname,sites[j],round(resid_ok,digits=5),round(as.numeric(R2),digits=5))
+#       tempPerf = rbind(tempPerf,thisModPer)
+#       
+#       png(file=paste(outDir,'/',CTname,'/',sites[j],"_BinResid.png",sep=""),width = 400, height = 300, units = "px")
+#       print(binned_residuals_RC(tempMod))
+#       while (dev.cur()>1) {dev.off()}
       
       ## Bootstrap GEEGLM parameter estimates for later construction of confidence intervals ----------------
       BootstrapParameters1<-rmvnorm(10000, coef(tempMod), summary(tempMod)$cov.unscaled)
@@ -279,58 +279,66 @@ for ( i in c(1:8,10:numel(species))){
       
       
       # JD:NT Interaction ------------------------------
-      if (~isempty(JDNTInd)){
+      if (!isempty(JDNTInd)){
         
-        # Recreate interaction basis
-        # IntBasis = cbind(NTBasis[,1]*JBasis,NTBasis[,2]*JBasis,NTBasis[,3]*JBasis)
-        IntBasis = numeric()
-        whichJD = 3600
-        for (k in 1:3){
-          IntBasis = cbind(IntBasis,NTBasis[,k]*JBasis[whichJD,1],NTBasis[,k]*JBasis[whichJD,2],NTBasis[,k]*JBasis[whichJD,3])
+        # Plot NT at a few different values of JD
+        NTIntplotDF = numeric()
+        NTIntCI = numeric()
+        IntDays = c(1,1250,2500,3750)
+        for (l in 1:length(IntDays)){
+          # Recreate interaction basis
+          IntBasis = numeric()
+          whichJD = IntDays[l]
+          for (k in 1:3){
+            IntBasis = cbind(IntBasis,NTBasis[,k]*JBasis[whichJD,1],NTBasis[,k]*JBasis[whichJD,2],NTBasis[,k]*JBasis[whichJD,3])
+          }
+          
+          # Plot NT smooth at several different values of JD
+          IntAdjust = IntBasis%*%coef(tempMod)[JDNTInd]
+          RealFitCenterNTInt<- RealFitNT+coef(tempMod)[1]+IntAdjust-mean(JxInt) # adjust offset
+          RealFitCenterNTInt<- inv.logit(RealFitCenterNTInt)
+          NTIntBootstrapFits<- (NTBasis%*%t(NTBootstrapCoefs))+coef(tempMod)[1]+(IntBasis%*%t(IntBootstrapCoefs)) # get spread of spline values at each X based on distributions of each coefficient
+          quant.func<- function(x){quantile(x, probs=c(0.025,0.975))}
+          cisNTInt<-apply(NTIntBootstrapFits, 1, quant.func)-mean(JxInt) # confidence interval of smooth function estimate
+          NTIntCI = cbind(NTIntCI,inv.logit(t(cisNTInt))) # get lower and upper CI bounds
+          
+          NTIntplotDF = cbind(NTIntplotDF,RealFitCenterNTInt)
+          
         }
         
-        # Plot NT smooth at several different values of JD
-        # NTForPlotting<- seq(min(thisSite$NormTime), max(thisSite$NormTime), length=5000)
-        # NTBasis<- mSpline(NTForPlotting,  # spline spanning range of X values
-        #                   knots=quantile(thisSite$NormTime, probs=c(0.275,0.5,0.725)),
-        #                   Boundary.knots=c(-1,1),
-        #                   periodic=T) # basis functions for smooth function
-        # RealFitNT<- NTBasis%*%(coef(tempMod)[NTInd]) # multiply basis functions by model coefficients to get values of spline at each X
-
-        # thisJD = which(thisSite$JulianDay==270)
-        # RealFitInt = model.matrix(tempMod)[thisJD,JDNTInd]%*%coef(tempMod)[JDNTInd]
+        NTIntplotDF = as.data.frame(cbind(NTForPlotting,NTIntplotDF))
+        colnames(NTIntplotDF) = c("NormTime","Fit1","Fit2","Fit3","Fit4")
+        NTIntCI = as.data.frame(NTIntCI)
+        colnames(NTIntCI) = c("Fit1Low","Fit1High","Fit2Low","Fit2High","Fit3Low","Fit3High","Fit4Low","Fit4High")
         
-        # JDNTMat = c(1,92,184,276)*matrix(NTForPlotting,nrow=4,ncol=5000,byrow=TRUE)
-        # IntBasis = mSpline(NTForPlotting,
-        #                    df=9,
-        #                    periodic=T)
-        # matplot(NTForPlotting,IntBasis, type = "p", pch = '.', ylab = "y", main ="JD*NT Basis, JD=1, DF=9")
-        # RealFitInt = IntBasis%*%(coef(tempMod)[JDNTInd])
-          
-        # IntAdjust = as.vector(IntBasis[276,]%*%coef(tempMod)[JDNTInd])
-          IntAdjust = IntBasis%*%coef(tempMod)[JDNTInd]
-        RealFitCenterNTInt<- RealFitNT+coef(tempMod)[1]+IntAdjust-mean(JxNT) # adjust offset
-        RealFitCenterNTInt<- inv.logit(RealFitCenterNTInt)
-        NTIntBootstrapFits<- (NTBasis%*%t(NTBootstrapCoefs))+coef(tempMod)[1]+(IntBasis%*%t(IntBootstrapCoefs)) # get spread of spline values at each X based on distributions of each coefficient
-        quant.func<- function(x){quantile(x, probs=c(0.025,0.975))}
-        cisNTInt<-apply(NTIntBootstrapFits, 1, quant.func)-mean(JxInt) # confidence interval of smooth function estimate
-        NTIntcil<-inv.logit(cisNTInt[1,]) # lowerCI bound
-        NTIntciu<-inv.logit(cisNTInt[2,]) # upper CI bound
-        
-        NTIntplotDF = data.frame(NTForPlotting,RealFitCenterNTInt)
-        colnames(NTIntplotDF) = c("NormTime","Fit")
-        
-        NTInt = ggplot(NTIntplotDF, aes(NormTime, Fit),
-        ) + geom_smooth(fill = "grey",
-                        colour = "black",
-                        aes(ymin=NTIntcil, ymax=1.05*NTIntciu),
+        NTInt = ggplot(NTIntplotDF,aes(x=NormTime)
+        ) + geom_smooth(aes(y=Fit1,ymin=NTIntCI$Fit1Low, ymax=1.05*NTIntCI$Fit1High),
+                        fill = "#33FFE0",
+                        alpha=0.3,
+                        colour = "#33FFE0",
+                        stat ="identity"
+        ) + geom_smooth(aes(y=Fit2,ymin=NTIntCI$Fit2Low, ymax=1.05*NTIntCI$Fit2High),
+                        fill = "#4933FF",
+                        alpha=0.3,
+                        colour = "#4933FF",
+                        stat ="identity"
+        ) + geom_smooth(aes(y=Fit3,ymin=NTIntCI$Fit3Low, ymax=1.05*NTIntCI$Fit3High),
+                        fill = "#D933FF",
+                        alpha=0.3,
+                        colour = "#D933FF",
+                        stat ="identity"
+        ) + geom_smooth(aes(y=Fit4,ymin=NTIntCI$Fit4Low, ymax=1.05*NTIntCI$Fit4High),
+                        fill = "#FF3333",
+                        alpha=0.3,
+                        colour = "#FF3333",
                         stat ="identity"
         ) + labs(x = NULL,
                  y = "Probability"
         ) + coord_cartesian(xlim=c(-1,1)
         ) + scale_x_continuous(breaks=c(-1,0,1),
                                labels=c("Sunrise","Sunset","Sunrise")
-        ) + theme(axis.line = element_line(size=0.2),
+        ) + theme(legend.position="right",
+                  axis.line = element_line(size=0.2),
                   panel.background = element_blank()
         )
         
