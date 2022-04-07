@@ -1,5 +1,36 @@
 {
     "debugBreakpointsState": {
-        "breakpoints": []
+        "breakpoints": [
+            {
+                "id": 101,
+                "path": "D:/Code/HabitatModeling/cgrad_RC.R",
+                "line_number": 16,
+                "function_steps": "5",
+                "function_name": "cgrad_RC",
+                "state": 1,
+                "editor_state": 1,
+                "editor_line_number": 16,
+                "is_pending_debug_completion": false,
+                "needs_updated_steps": false,
+                "type": 0,
+                "is_package_breakpoint": false,
+                "package_name": ""
+            },
+            {
+                "id": 102,
+                "path": "D:/Code/HabitatModeling/wrangle_GEBCO.R",
+                "line_number": 63,
+                "function_steps": "",
+                "function_name": "toplevel",
+                "state": 1,
+                "editor_state": 1,
+                "editor_line_number": 63,
+                "is_pending_debug_completion": false,
+                "needs_updated_steps": false,
+                "type": 1,
+                "is_package_breakpoint": false,
+                "package_name": ""
+            }
+        ]
     }
 }

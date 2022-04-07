@@ -37,7 +37,7 @@ lunPerf = data.frame(Species=as.character(),
 
 for ( i in c(1:8,10:numel(species))){
   
-  JDmodFiles = list.files(path=species[i],pattern="*Model_JDYrNormTime.Rdata",
+  JDmodFiles = list.files(path=species[i],pattern="*Model_JDNTYr_5I.Rdata",
                           full.names=TRUE,recursive=FALSE,include.dirs=FALSE,no..=TRUE)
   LunmodFiles = list.files(path=species[i],pattern="*Model_LunPhaseAltPres.Rdata",
                            full.names=TRUE,recursive=FALSE,include.dirs=FALSE,no..=TRUE)
@@ -47,7 +47,7 @@ for ( i in c(1:8,10:numel(species))){
   for (j in 1:numel(JDmodFiles)){
     
     site = str_remove(JDmodFiles[j],paste(outDir,"/",CTname,"/",sep=""))
-    sites = c(sites,str_remove(site,"_5minBin_Model_JDYrNormTime.Rdata"))
+    sites = c(sites,str_remove(site,"_5minBin_Model_JDNTYr_5I.Rdata"))
     if (sites[j]=="NULL"){
       stop("Didn't get site name")}
 
@@ -65,26 +65,11 @@ for ( i in c(1:8,10:numel(species))){
       JDInd = numeric()
       NTInd = numeric()
       YrInd = numeric()
-      if (tempMod$formula =='Pres ~ JDs + NTs + YrF'){
-        JDInd = c(2:4)
-        NTInd = c(5:7)
-        YrInd = c(1,8:9)
-      } else if (tempMod$formula =='Pres ~ JDs + NTs'){
-        JDInd = c(2:4)
-        NTInd = c(5:7)
-      } else if (tempMod$formula =='Pres ~ JDs + YrF'){
-        JDInd = c(2:4)
-        YrInd = c(1,5:6)
-      } else if (tempMod$formula =='Pres ~ NTs + YrF'){
-        NTInd = c(2:4)
-        YrInd = c(1,5:6)
-      } else if (tempMod$formula =='Pres ~ JDs'){
-        JDInd = c(2:4)
-      } else if (tempMod$formula =='Pres ~ NTs'){
-        NTInd = c(2:4)
-      } else if (tempMod$formula =='Pres ~ YrF'){
-        YrInd = c(1:3)
-      }
+      JDNTInd = numeric()
+      JDInd = which(str_detect(names(tempMod$coefficients),"JDs")&!str_detect(names(tempMod$coefficients),"NTs"))
+      NTInd = which(str_detect(names(tempMod$coefficients),"NTs")&!str_detect(names(tempMod$coefficients),"JDs"))
+      YrInd = c(1,which(str_detect(names(tempMod$coefficients),"YrF")))
+      JDNTInd = which(str_detect(names(tempMod$coefficients),"JDs")&str_detect(names(tempMod$coefficients),"NTs"))
 
       if (sites[j]=="HAT"){
         startInd = which(thisSite$TimeStamp>=as.POSIXct('2017-05-01 00:00:00',format="%Y-%m-%d %H:%M:%S",tz="GMT"))
@@ -136,23 +121,23 @@ for ( i in c(1:8,10:numel(species))){
                                      as.Date("2019-04-30"))
       ) + labs(x="",y="Residuals")
 
-      HL = hoslem.test(thisSite$Presence,fitted(tempMod))
-      HLPlot = data.frame(Expected=HL$expected[,1],Observed=HL$observed[,1])
-      HLPlot$X = seq(min(HL$observed[,1]),max(HL$observed[,1]),length.out=length(HLPlot$Expected))
-      HLPlot$Y = seq(min(HL$observed[,1]),max(HL$observed[,1]),length.out=length(HLPlot$Expected))
-
-      ObsPred = ggplot(HLPlot
-      ) + geom_line(aes(x=X,y=Y)
-      ) + geom_point(aes(y=Expected,x=Observed)
-      ) + labs(x="Observed",y="Expected"
-      ) + annotate("text",
-                   label=paste('p-value: ',as.character(HL$p.value),sep=""),
-                   size=4,
-                   x=1.005*min(HL$observed[,1]),
-                   y=0.999*max(HL$expected[,1]))
+      # HL = hoslem.test(thisSite$Presence,fitted(tempMod))
+      # HLPlot = data.frame(Expected=HL$expected[,1],Observed=HL$observed[,1])
+      # HLPlot$X = seq(min(HL$observed[,1]),max(HL$observed[,1]),length.out=length(HLPlot$Expected))
+      # HLPlot$Y = seq(min(HL$observed[,1]),max(HL$observed[,1]),length.out=length(HLPlot$Expected))
+      # 
+      # ObsPred = ggplot(HLPlot
+      # ) + geom_line(aes(x=X,y=Y)
+      # ) + geom_point(aes(y=Expected,x=Observed)
+      # ) + labs(x="Observed",y="Expected"
+      # ) + annotate("text",
+      #              label=paste('p-value: ',as.character(HL$p.value),sep=""),
+      #              size=4,
+      #              x=1.005*min(HL$observed[,1]),
+      #              y=0.999*max(HL$expected[,1]))
 
       png(file=paste(outDir,'/',CTname,'/',sites[j],"_ModelFit.png",sep=""),width = 1400, height = 800, units = "px")
-      grid.arrange(PresPlot,FitPlot,ModRes,ObsPred,ncol=1,nrow=4,top=paste(CTname,'at',sites[j]))
+      grid.arrange(PresPlot,FitPlot,ModRes,ncol=1,nrow=3,top=paste(CTname,'at',sites[j]))
       while (dev.cur()>1) {dev.off()}
       
       binRes = binned_residuals_RC(tempMod)
@@ -166,30 +151,30 @@ for ( i in c(1:8,10:numel(species))){
       while (dev.cur()>1) {dev.off()}
       
       ## Bootstrap GEEGLM parameter estimates for later construction of confidence intervals ----------------
-      BootstrapParameters1<-rmvnorm(10000, coef(tempMod8I), summary(tempMod8I)$cov.unscaled)
+      BootstrapParameters1<-rmvnorm(10000, coef(tempMod), summary(tempMod)$cov.unscaled)
       JDayBootstrapCoefs<- BootstrapParameters1[,JDInd]
-      # DayPhaseBootstrapCoefs<- BootstrapParameters1[,DPInd]
       NTBootstrapCoefs<- BootstrapParameters1[,NTInd]
       YearBootstrapCoefs<- BootstrapParameters1[,YrInd]
+      IntBootstrapCoefs<- BootstrapParameters1[,JDNTInd]
 
       # Predict presence at each X value using model coefficients
-      JxJD = model.matrix(tempMod8I)[,JDInd]%*%coef(tempMod8I)[JDInd]
-      JxNT = model.matrix(tempMod8I)[,NTInd]%*%coef(tempMod8I)[NTInd]
-      # JxDP = model.matrix(tempMod)[,DPInd]%*%coef(tempMod)[DPInd]
-      JxYr = model.matrix(tempMod8I)[,YrInd]%*%coef(tempMod8I)[YrInd]
+      JxJD = model.matrix(tempMod)[,JDInd]%*%coef(tempMod)[JDInd]
+      JxNT = model.matrix(tempMod)[,NTInd]%*%coef(tempMod)[NTInd]
+      JxYr = model.matrix(tempMod)[,YrInd]%*%coef(tempMod)[YrInd]
+      JxInt = model.matrix(tempMod)[,JDNTInd]%*%coef(tempMod)[JDNTInd]
 
       ### Generate GEEGLM partial residual plots ---------------------------
       # Julian Day ---------------------------
       if (!isempty(JDInd)){
         JDayForPlotting<- seq(min(thisSite$JulianDay), max(thisSite$JulianDay), length=5000)
         JBasis<- mSpline(JDayForPlotting,  # spline spanning range of X values
-                         knots=quantile(thisSite$JulianDay, probs=c(0.143, 0.286, 0.429, 0.571, 0.714, 0.857)),
+                         knots=quantile(thisSite$JulianDay, probs=c(0.275,0.5,0.725)),
                          Boundary.knots=c(1,365),
                          periodic=T) # basis functions for smooth function
-        RealFitJ<- JBasis%*%(coef(tempMod8I)[JDInd]) # multiply basis functions by model coefficients to get values of spline at each X
-        RealFitCenterJ<- RealFitJ+coef(tempMod8I)[1]-mean(JxJD) # adjust offset
+        RealFitJ<- JBasis%*%(coef(tempMod)[JDInd]) # multiply basis functions by model coefficients to get values of spline at each X
+        RealFitCenterJ<- RealFitJ+coef(tempMod)[1]-mean(JxJD) # adjust offset
         RealFitCenterJ<- inv.logit(RealFitCenterJ)
-        JDayBootstrapFits<- (JBasis%*%t(JDayBootstrapCoefs))+coef(tempMod8I)[1] # get spread of spline values at each X based on distributions of each coefficient
+        JDayBootstrapFits<- (JBasis%*%t(JDayBootstrapCoefs))+coef(tempMod)[1] # get spread of spline values at each X based on distributions of each coefficient
         quant.func<- function(x){quantile(x, probs=c(0.025,0.975))}
         cisJ<-apply(JDayBootstrapFits, 1, quant.func)-mean(JxJD) # confidence interval of smooth function estimate
         Jcil<-inv.logit(cisJ[1,]) # lowerCI bound
@@ -238,13 +223,13 @@ for ( i in c(1:8,10:numel(species))){
       if (!isempty(NTInd)){
         NTForPlotting<- seq(min(thisSite$NormTime), max(thisSite$NormTime), length=5000)
         NTBasis<- mSpline(NTForPlotting,  # spline spanning range of X values
-                          knots=quantile(thisSite$NormTime, probs=c(0.143, 0.286, 0.429, 0.571, 0.714, 0.857)),
+                          knots=quantile(thisSite$NormTime, probs=c(0.275,0.5,0.725)),
                           Boundary.knots=c(-1,1),
                           periodic=T) # basis functions for smooth function
-        RealFitNT<- NTBasis%*%(coef(tempMod8I)[NTInd]) # multiply basis functions by model coefficients to get values of spline at each X
-        RealFitCenterNT<- RealFitNT+coef(tempMod8I)[1]-mean(JxNT) # adjust offset
+        RealFitNT<- NTBasis%*%(coef(tempMod)[NTInd]) # multiply basis functions by model coefficients to get values of spline at each X
+        RealFitCenterNT<- RealFitNT+coef(tempMod)[1]-mean(JxNT) # adjust offset
         RealFitCenterNT<- inv.logit(RealFitCenterNT)
-        NTBootstrapFits<- (NTBasis%*%t(NTBootstrapCoefs))+coef(tempMod8I)[1] # get spread of spline values at each X based on distributions of each coefficient
+        NTBootstrapFits<- (NTBasis%*%t(NTBootstrapCoefs))+coef(tempMod)[1] # get spread of spline values at each X based on distributions of each coefficient
         quant.func<- function(x){quantile(x, probs=c(0.025,0.975))}
         cisNT<-apply(NTBootstrapFits, 1, quant.func)-mean(JxNT) # confidence interval of smooth function estimate
         NTcil<-inv.logit(cisNT[1,]) # lowerCI bound
@@ -291,6 +276,83 @@ for ( i in c(1:8,10:numel(species))){
         ggsave(saveName,device="pdf", width=1, scale=4, height=0.5, units="in",dpi=600)
         while (dev.cur()>1) {dev.off()}
       }
+      
+      
+      # JD:NT Interaction ------------------------------
+      if (~isempty(JDNTInd)){
+        
+        # Recreate interaction basis
+        # IntBasis = cbind(NTBasis[,1]*JBasis,NTBasis[,2]*JBasis,NTBasis[,3]*JBasis)
+        IntBasis = numeric()
+        whichJD = 3600
+        for (k in 1:3){
+          IntBasis = cbind(IntBasis,NTBasis[,k]*JBasis[whichJD,1],NTBasis[,k]*JBasis[whichJD,2],NTBasis[,k]*JBasis[whichJD,3])
+        }
+        
+        # Plot NT smooth at several different values of JD
+        # NTForPlotting<- seq(min(thisSite$NormTime), max(thisSite$NormTime), length=5000)
+        # NTBasis<- mSpline(NTForPlotting,  # spline spanning range of X values
+        #                   knots=quantile(thisSite$NormTime, probs=c(0.275,0.5,0.725)),
+        #                   Boundary.knots=c(-1,1),
+        #                   periodic=T) # basis functions for smooth function
+        # RealFitNT<- NTBasis%*%(coef(tempMod)[NTInd]) # multiply basis functions by model coefficients to get values of spline at each X
+
+        # thisJD = which(thisSite$JulianDay==270)
+        # RealFitInt = model.matrix(tempMod)[thisJD,JDNTInd]%*%coef(tempMod)[JDNTInd]
+        
+        # JDNTMat = c(1,92,184,276)*matrix(NTForPlotting,nrow=4,ncol=5000,byrow=TRUE)
+        # IntBasis = mSpline(NTForPlotting,
+        #                    df=9,
+        #                    periodic=T)
+        # matplot(NTForPlotting,IntBasis, type = "p", pch = '.', ylab = "y", main ="JD*NT Basis, JD=1, DF=9")
+        # RealFitInt = IntBasis%*%(coef(tempMod)[JDNTInd])
+          
+        # IntAdjust = as.vector(IntBasis[276,]%*%coef(tempMod)[JDNTInd])
+          IntAdjust = IntBasis%*%coef(tempMod)[JDNTInd]
+        RealFitCenterNTInt<- RealFitNT+coef(tempMod)[1]+IntAdjust-mean(JxNT) # adjust offset
+        RealFitCenterNTInt<- inv.logit(RealFitCenterNTInt)
+        NTIntBootstrapFits<- (NTBasis%*%t(NTBootstrapCoefs))+coef(tempMod)[1]+(IntBasis%*%t(IntBootstrapCoefs)) # get spread of spline values at each X based on distributions of each coefficient
+        quant.func<- function(x){quantile(x, probs=c(0.025,0.975))}
+        cisNTInt<-apply(NTIntBootstrapFits, 1, quant.func)-mean(JxInt) # confidence interval of smooth function estimate
+        NTIntcil<-inv.logit(cisNTInt[1,]) # lowerCI bound
+        NTIntciu<-inv.logit(cisNTInt[2,]) # upper CI bound
+        
+        NTIntplotDF = data.frame(NTForPlotting,RealFitCenterNTInt)
+        colnames(NTIntplotDF) = c("NormTime","Fit")
+        
+        NTInt = ggplot(NTIntplotDF, aes(NormTime, Fit),
+        ) + geom_smooth(fill = "grey",
+                        colour = "black",
+                        aes(ymin=NTIntcil, ymax=1.05*NTIntciu),
+                        stat ="identity"
+        ) + labs(x = NULL,
+                 y = "Probability"
+        ) + coord_cartesian(xlim=c(-1,1)
+        ) + scale_x_continuous(breaks=c(-1,0,1),
+                               labels=c("Sunrise","Sunset","Sunrise")
+        ) + theme(axis.line = element_line(size=0.2),
+                  panel.background = element_blank()
+        )
+        
+        
+        # Plot JD smooth at several different values of NT
+        # JDayForPlotting<- seq(min(thisSite$JulianDay), max(thisSite$JulianDay), length=5000)
+        # JBasis<- mSpline(JDayForPlotting,  # spline spanning range of X values
+        #                  knots=quantile(thisSite$JulianDay, probs=c(0.275,0.5,0.725)),
+        #                  Boundary.knots=c(1,365),
+        #                  periodic=T) # basis functions for smooth function
+        # RealFitJ<- JBasis%*%(coef(tempMod)[JDInd]) # multiply basis functions by model coefficients to get values of spline at each X
+        RealFitCenterJInt<- RealFitJ+coef(tempMod)[1]+(coef(tempMod)[JDNTInd]%*%TKTK)-mean(JxJD) # add interaction and adjust offset
+        RealFitCenterJ<- inv.logit(RealFitCenterJ)
+        JDayBootstrapFits<- (JBasis%*%t(JDayBootstrapCoefs))+coef(tempMod)[1] # get spread of spline values at each X based on distributions of each coefficient
+        quant.func<- function(x){quantile(x, probs=c(0.025,0.975))}
+        cisJ<-apply(JDayBootstrapFits, 1, quant.func)-mean(JxJD) # confidence interval of smooth function estimate
+        Jcil<-inv.logit(cisJ[1,]) # lowerCI bound
+        Jciu<-inv.logit(cisJ[2,]) # upper CI bound
+        
+      }
+      
+      
       # Year (as boxplot) -----------------------------------
       if (!isempty(YrInd)){
         # Center intercept (1st level of year factor) at 0 and show other levels relative to it
