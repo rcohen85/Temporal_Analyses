@@ -27,13 +27,13 @@ lunList = list.files(path=modelDFDir,pattern=paste('*',int,'_MasterLun.csv',sep=
 
 species = list.dirs(outDir,recursive=FALSE)
 tempPerf = data.frame(Species=as.character(),
-                             Site=as.character(),
-                             PropGoodResid=as.numeric(),
-                             R2=as.numeric())
-lunPerf = data.frame(Species=as.character(),
                       Site=as.character(),
                       PropGoodResid=as.numeric(),
                       R2=as.numeric())
+lunPerf = data.frame(Species=as.character(),
+                     Site=as.character(),
+                     PropGoodResid=as.numeric(),
+                     R2=as.numeric())
 
 for ( i in c(1:8,10:numel(species))){
   
@@ -42,7 +42,7 @@ for ( i in c(1:8,10:numel(species))){
   LunmodFiles = list.files(path=species[i],pattern="*Model_LunPhaseAltPres.Rdata",
                            full.names=TRUE,recursive=FALSE,include.dirs=FALSE,no..=TRUE)
   CTname = str_remove(species[i],paste(outDir,'/',sep=""))
-
+  
   sites = list()
   for (j in 1:numel(JDmodFiles)){
     
@@ -50,38 +50,38 @@ for ( i in c(1:8,10:numel(species))){
     sites = c(sites,str_remove(site,"_5minBin_Model_JDNTYr_5I.Rdata"))
     if (sites[j]=="NULL"){
       stop("Didn't get site name")}
-
+    
     load(JDmodFiles[j]) # load JD + NormTime + Yr model
-
+    
     if (tempMod$geese$error==0){ # not all models converged, don't plot non-converged models
-
-# find associated master dataframe
-thisSpec = which(str_detect(dfList,CTname))
-atSite = which(str_detect(dfList,unlist(sites[j])))
-thisModInd = intersect(thisSpec,atSite)
-thisSite = data.frame(read.csv(dfList[thisModInd])) # JD model data frame
-
-# Indices of coefficients for each covar
-JDInd = numeric()
-NTInd = numeric()
-YrInd = numeric()
-JDNTInd = numeric()
-JDInd = which(str_detect(names(tempMod$coefficients),"JDs")&!str_detect(names(tempMod$coefficients),"NTs"))
-NTInd = which(str_detect(names(tempMod$coefficients),"NTs")&!str_detect(names(tempMod$coefficients),"JDs"))
-YrInd = which(str_detect(names(tempMod$coefficients),"YrF"))
-if (!isempty(YrInd)){
-  YrInd = c(1,YrInd)
-}
-JDNTInd = which(str_detect(names(tempMod$coefficients),"JDs")&str_detect(names(tempMod$coefficients),"NTs"))
-
-if (sites[j]=="HAT"){
-  startInd = which(thisSite$TimeStamp>=as.POSIXct('2017-05-01 00:00:00',format="%Y-%m-%d %H:%M:%S",tz="GMT"))
-  thisSite = thisSite[startInd,]
-  if (!isempty(YrInd)){
-    YrInd = c(1,length(coef(tempMod))) # only two years of data at HAT
-  }
-}
-
+      
+      # find associated master dataframe
+      thisSpec = which(str_detect(dfList,CTname))
+      atSite = which(str_detect(dfList,unlist(sites[j])))
+      thisModInd = intersect(thisSpec,atSite)
+      thisSite = data.frame(read.csv(dfList[thisModInd])) # JD model data frame
+      
+      # Indices of coefficients for each covar
+      JDInd = numeric()
+      NTInd = numeric()
+      YrInd = numeric()
+      JDNTInd = numeric()
+      JDInd = which(str_detect(names(tempMod$coefficients),"JDs")&!str_detect(names(tempMod$coefficients),"NTs"))
+      NTInd = which(str_detect(names(tempMod$coefficients),"NTs")&!str_detect(names(tempMod$coefficients),"JDs"))
+      YrInd = which(str_detect(names(tempMod$coefficients),"YrF"))
+      if (!isempty(YrInd)){
+        YrInd = c(1,YrInd)
+      }
+      JDNTInd = which(str_detect(names(tempMod$coefficients),"JDs")&str_detect(names(tempMod$coefficients),"NTs"))
+      
+      if (sites[j]=="HAT"){
+        startInd = which(thisSite$TimeStamp>=as.POSIXct('2017-05-01 00:00:00',format="%Y-%m-%d %H:%M:%S",tz="GMT"))
+        thisSite = thisSite[startInd,]
+        if (!isempty(YrInd)){
+          YrInd = c(1,length(coef(tempMod))) # only two years of data at HAT
+        }
+      }
+      
       ## Create model fit plots ---------------------
       # modFit = data.frame(Date=as.Date(thisSite$TimeStamp),
       #                     Pres=thisSite$Presence,
@@ -142,13 +142,13 @@ if (sites[j]=="HAT"){
       # png(file=paste(outDir,'/',CTname,'/',sites[j],"_ModelFit.png",sep=""),width = 1400, height = 800, units = "px")
       # grid.arrange(PresPlot,FitPlot,ModRes,ncol=1,nrow=3,top=paste(CTname,'at',sites[j]))
       # while (dev.cur()>1) {dev.off()}
-
+      
       binRes = binned_residuals_RC(tempMod)
       resid_ok = sum(binRes$group == "yes")/length(binRes$group)
       R2 = r2_tjur_RC(tempMod)
       thisModPer = cbind(CTname,sites[j],round(resid_ok,digits=5),round(as.numeric(R2),digits=5))
       tempPerf = rbind(tempPerf,thisModPer)
-
+      
       png(file=paste(outDir,'/',CTname,'/',sites[j],"_BinResidI.png",sep=""),width = 400, height = 300, units = "px")
       print(binned_residuals_RC(tempMod))
       while (dev.cur()>1) {dev.off()}
@@ -159,13 +159,7 @@ if (sites[j]=="HAT"){
       NTBootstrapCoefs<- BootstrapParameters1[,NTInd]
       YearBootstrapCoefs<- BootstrapParameters1[,YrInd]
       IntBootstrapCoefs<- BootstrapParameters1[,JDNTInd]
-
-      # # Predict presence at each X value using model coefficients
-      # JxJD = model.matrix(tempMod)[,JDInd]%*%coef(tempMod)[JDInd]
-      # JxNT = model.matrix(tempMod)[,NTInd]%*%coef(tempMod)[NTInd]
-      # JxYr = model.matrix(tempMod)[,YrInd]%*%coef(tempMod)[YrInd]
-      # JxInt = model.matrix(tempMod)[,JDNTInd]%*%coef(tempMod)[JDNTInd]
-
+      
       ### Generate GEEGLM partial residual plots ---------------------------
       # Julian Day ---------------------------
       if (!isempty(JDInd) & isempty(JDNTInd)){
@@ -175,17 +169,17 @@ if (sites[j]=="HAT"){
                          Boundary.knots=c(1,365),
                          periodic=T) # basis functions for smooth function
         RealFitJ<- JBasis%*%(coef(tempMod)[JDInd]) # multiply basis functions by model coefficients to get values of spline at each X
-        RealFitCenterJ<- RealFitJ+coef(tempMod)[1]#-mean(JxJD) # adjust offset
+        RealFitCenterJ<- RealFitJ+coef(tempMod)[1] # adjust offset
         RealFitCenterJ<- inv.logit(RealFitCenterJ)
         JDayBootstrapFits<- (JBasis%*%t(JDayBootstrapCoefs))+coef(tempMod)[1] # get spread of spline values at each X based on distributions of each coefficient
         quant.func<- function(x){quantile(x, probs=c(0.0275,0.975))}
-        cisJ<-apply(JDayBootstrapFits, 1, quant.func)#-mean(JxJD) # confidence interval of smooth function estimate
+        cisJ<-apply(JDayBootstrapFits, 1, quant.func) # confidence interval of smooth function estimate
         Jcil<-inv.logit(cisJ[1,]) # lowerCI bound
         Jciu<-inv.logit(cisJ[2,]) # upper CI bound
-
+        
         JplotDF = data.frame(JDayForPlotting,RealFitCenterJ)
         colnames(JplotDF) = c("Jday","Fit")
-
+        
         JD = ggplot(JplotDF, aes(Jday, Fit),
         ) + geom_smooth(fill = "grey",
                         colour = "black",
@@ -198,14 +192,14 @@ if (sites[j]=="HAT"){
         ) + theme(axis.line = element_line(size=0.2),
                   panel.background = element_blank()
         )
-
+        
         saveName = paste(outDir,'/',CTname,'/',sites[j],"_",int,"_GEEGLM_JDPlotI_Probs.png",sep="")
         ggsave(saveName,device="png", width=2, scale=3, height=0.5, units="in",dpi=600)
         while (dev.cur()>1) {dev.off()}
         saveName = paste(outDir,'/',CTname,'/',sites[j],"_",int,"_GEEGLM_JDPlotI_Probs.pdf",sep="")
         ggsave(saveName,device="pdf", width=2, scale=3, height=0.5, units="in",dpi=600)
         while (dev.cur()>1) {dev.off()}
-
+        
         JDdens = ggplot(thisSite,aes(x=JulianDay)
         )+geom_histogram(aes(y=..ncount..),
                          fill='#66B2FF',
@@ -222,6 +216,7 @@ if (sites[j]=="HAT"){
         ggsave(saveName,device="pdf", width=2, scale=4, height=0.5, units="in",dpi=600)
         while (dev.cur()>1) {dev.off()}
       }
+      
       # Norm Time ---------------------------
       if (!isempty(NTInd) & isempty(JDNTInd)){
         NTForPlotting<- seq(min(thisSite$NormTime), max(thisSite$NormTime), length=5000)
@@ -230,17 +225,17 @@ if (sites[j]=="HAT"){
                           Boundary.knots=c(-1,1),
                           periodic=T) # basis functions for smooth function
         RealFitNT<- NTBasis%*%(coef(tempMod)[NTInd]) # multiply basis functions by model coefficients to get values of spline at each X
-        RealFitCenterNT<- RealFitNT+coef(tempMod)[1]#-mean(JxNT) # adjust offset
+        RealFitCenterNT<- RealFitNT+coef(tempMod)[1] # adjust offset
         RealFitCenterNT<- inv.logit(RealFitCenterNT)
         NTBootstrapFits<- (NTBasis%*%t(NTBootstrapCoefs))+coef(tempMod)[1] # get spread of spline values at each X based on distributions of each coefficient
         quant.func<- function(x){quantile(x, probs=c(0.0275,0.975))}
-        cisNT<-apply(NTBootstrapFits, 1, quant.func)#-mean(JxNT) # confidence interval of smooth function estimate
+        cisNT<-apply(NTBootstrapFits, 1, quant.func) # confidence interval of smooth function estimate
         NTcil<-inv.logit(cisNT[1,]) # lowerCI bound
         NTciu<-inv.logit(cisNT[2,]) # upper CI bound
-
+        
         NTplotDF = data.frame(NTForPlotting,RealFitCenterNT)
         colnames(NTplotDF) = c("NormTime","Fit")
-
+        
         NT = ggplot(NTplotDF, aes(NormTime, Fit),
         ) + geom_smooth(fill = "grey",
                         colour = "black",
@@ -254,14 +249,14 @@ if (sites[j]=="HAT"){
         ) + theme(axis.line = element_line(size=0.2),
                   panel.background = element_blank()
         )
-
+        
         saveName = paste(outDir,'/',CTname,'/',sites[j],"_",int,"_GEEGLM_NTPlotI_Probs.png",sep="")
         ggsave(saveName,device="png", width=2, scale=3, height=0.5, units="in",dpi=600)
         while (dev.cur()>1) {dev.off()}
         saveName = paste(outDir,'/',CTname,'/',sites[j],"_",int,"_GEEGLM_NTPlotI_Probs.pdf",sep="")
         ggsave(saveName,device="pdf", width=2, scale=3, height=0.5, units="in",dpi=600)
         while (dev.cur()>1) {dev.off()}
-
+        
         NTdens = ggplot(thisSite,aes(x=NormTime)
         )+geom_histogram(aes(y=..ncount..),
                          fill='#66B2FF',
@@ -280,7 +275,6 @@ if (sites[j]=="HAT"){
         while (dev.cur()>1) {dev.off()}
       }
       
-      
       # JD:NT Interaction ------------------------------
       if (!isempty(JDNTInd)){
         JDayForPlotting<- seq(min(thisSite$JulianDay), max(thisSite$JulianDay), length=5000)
@@ -296,139 +290,234 @@ if (sites[j]=="HAT"){
                           periodic=T) # basis functions for smooth function
         RealFitNT<- NTBasis%*%(coef(tempMod)[NTInd]) # multiply basis functions by model coefficients to get values of spline at each X
         
-        # Plot NT at a few different values of JD
-        NTIntplotDF = numeric()
-        NTIntCI = numeric()
-        IntDays = c(1,1250,2500,3750)
-        for (l in 1:length(IntDays)){
+        # Plot NT smooth (if significant) ------------------
+        
+        if (PV$'p-value'[PV$'Variable'=="NTs"]<0.05){
+          # NT at different values of JD
+          NTIntplotDF = numeric()
+          NTIntCI = numeric()
+          IntDays = c(1,1250,2500,3750)
+          for (l in 1:length(IntDays)){
+            # Recreate interaction basis
+            IntBasis = numeric()
+            whichJD = IntDays[l]
+            for (k in 1:3){
+              IntBasis = cbind(IntBasis,NTBasis[,k]*JBasis[whichJD,1],NTBasis[,k]*JBasis[whichJD,2],NTBasis[,k]*JBasis[whichJD,3])
+            }
+            
+            # Calculate NT smooth at several different values of JD
+            IntAdjust = IntBasis%*%coef(tempMod)[JDNTInd]
+            RealFitCenterNTInt<- RealFitNT+coef(tempMod)[1]+IntAdjust # adjust offset
+            RealFitCenterNTInt<- inv.logit(RealFitCenterNTInt)
+            NTIntBootstrapFits<- (NTBasis%*%t(NTBootstrapCoefs))+coef(tempMod)[1]+(IntBasis%*%t(IntBootstrapCoefs)) # get spread of spline values at each X based on distributions of each coefficient
+            quant.func<- function(x){quantile(x, probs=c(0.025,0.975))}
+            cisNTInt<-apply(NTIntBootstrapFits, 1, quant.func) # confidence interval of smooth function estimate
+            NTIntCI = rbind(NTIntCI,cbind(NTForPlotting,inv.logit(t(cisNTInt)),rep(l,times=5000))) # get lower and upper CI bounds
+            
+            NTIntplotDF = rbind(NTIntplotDF,cbind(NTForPlotting,RealFitCenterNTInt,rep(l,times=5000)))
+            
+          }
+          
+          NTIntplotDF = as.data.frame(NTIntplotDF)
+          colnames(NTIntplotDF) = c("NormTime","Data","Fit")
+          NTIntCI = as.data.frame(NTIntCI)
+          colnames(NTIntCI) = c("NormTime","Ymin","Ymax","Fit2")
+          NTIntplotDF$Fit = as.factor(NTIntplotDF$Fit)
+          NTIntCI$Fit2 = as.factor(NTIntCI$Fit2)
+          
+          NTInt = ggplot(
+          ) + geom_line(data=NTIntplotDF,aes(x=NormTime,y=Data,group=Fit,color=Fit),size=1
+          ) + scale_color_manual("Fit",values=c("#33FFE0","#335CFF","#D933FF","#FF334B"),
+                                 labels=c("Winter","Spring","Summer","Fall"),
+                                 name="Season"
+          ) + geom_ribbon(data=NTIntCI,aes(x=NormTime,ymin=Ymin, ymax=1.05*Ymax,group=Fit2,fill=Fit2),
+                          alpha=0.2,
+                          stat ="identity"
+          ) + scale_fill_manual("Fit2",values=c("#33FFE0","#335CFF","#D933FF","#FF334B"),
+                                guide=NULL
+          ) + labs(x = NULL,
+                   y = "Probability"
+          ) + coord_cartesian(xlim=c(-1,1)
+          ) + scale_x_continuous(breaks=c(-1,0,1),
+                                 labels=c("Sunrise","Sunset","Sunrise")
+          ) + theme(legend.position="right",
+                    axis.line = element_line(size=0.2),
+                    panel.background = element_blank()
+          )
+          
+          saveName = paste(outDir,'/',CTname,'/',sites[j],"_",int,"_GEEGLM_NTIntPlot_Partial.png",sep="")
+          ggsave(saveName,device="png", width=2, scale=5, height=1, units="in",dpi=600)
+          while (dev.cur()>1) {dev.off()}
+          saveName = paste(outDir,'/',CTname,'/',sites[j],"_",int,"_GEEGLM_NTIntPlot_Partial.pdf",sep="")
+          ggsave(saveName,device="pdf", width=2, scale=5, height=1, units="in",dpi=600)
+          while (dev.cur()>1) {dev.off()}
+          
+          
+          # NT across values of JD
+          NTIntplotDF = numeric()
+          NTIntCI = numeric()
           # Recreate interaction basis
           IntBasis = numeric()
-          whichJD = IntDays[l]
           for (k in 1:3){
-            IntBasis = cbind(IntBasis,NTBasis[,k]*JBasis[whichJD,1],NTBasis[,k]*JBasis[whichJD,2],NTBasis[,k]*JBasis[whichJD,3])
+            IntBasis = cbind(IntBasis,NTBasis[,k]*JBasis[,1],NTBasis[,k]*JBasis[,2],NTBasis[,k]*JBasis[,3])
+          }
+          
+          # Calculate NT smooth averaged across JD
+          IntAdjust = IntBasis%*%coef(tempMod)[JDNTInd]
+          RealFitCenterNTInt<- RealFitNT+coef(tempMod)[1]+IntAdjust # adjust offset
+          RealFitCenterNTInt<- inv.logit(RealFitCenterNTInt)
+          NTIntBootstrapFits<- (NTBasis%*%t(NTBootstrapCoefs))+coef(tempMod)[1]+(IntBasis%*%t(IntBootstrapCoefs)) # get spread of spline values at each X based on distributions of each coefficient
+          quant.func<- function(x){quantile(x, probs=c(0.025,0.975))}
+          cisNTInt<-apply(NTIntBootstrapFits, 1, quant.func) # confidence interval of smooth function estimate
+          NTIntCI = cbind(NTForPlotting,inv.logit(t(cisNTInt))) # get lower and upper CI bounds
+          
+          NTIntplotDF = cbind(NTForPlotting,RealFitCenterNTInt)
+          
+          NTIntplotDF = as.data.frame(NTIntplotDF)
+          colnames(NTIntplotDF) = c("NormTime","Data")
+          NTIntCI = as.data.frame(NTIntCI)
+          colnames(NTIntCI) = c("NormTime","Ymin","Ymax")
+          
+          NTInt = ggplot(
+          ) + geom_line(data=NTIntplotDF,aes(x=NormTime,y=Data),size=1,color="51D4A5"
+          ) + geom_ribbon(data=NTIntCI,aes(x=NormTime,ymin=Ymin, ymax=1.05*Ymax),
+                          fill="51D4A5",
+                          alpha=0.2,
+                          stat ="identity"
+          ) + labs(x = NULL,
+                   y = "Probability"
+          ) + coord_cartesian(xlim=c(-1,1)
+          ) + scale_x_continuous(breaks=c(-1,0,1),
+                                 labels=c("Sunrise","Sunset","Sunrise")
+          ) + theme(legend.position="right",
+                    axis.line = element_line(size=0.2),
+                    panel.background = element_blank()
+          )
+          
+          saveName = paste(outDir,'/',CTname,'/',sites[j],"_",int,"_GEEGLM_NTIntPlot_Overall.png",sep="")
+          ggsave(saveName,device="png", width=2, scale=5, height=1, units="in",dpi=600)
+          while (dev.cur()>1) {dev.off()}
+          saveName = paste(outDir,'/',CTname,'/',sites[j],"_",int,"_GEEGLM_NTIntPlot_Overall.pdf",sep="")
+          ggsave(saveName,device="pdf", width=2, scale=5, height=1, units="in",dpi=600)
+          while (dev.cur()>1) {dev.off()}
+        }
+        
+        # Plot JD smooth (if significant)  ------------------------------
+        if (PV$'p-value'[PV$'Variable'=="JDs"]<0.05){
+          # JD at different values of NT
+          JDIntplotDF = numeric()
+          JDIntCI = numeric()
+          IntTimes = c(1,1250,2500,3750)
+          for (l in 1:length(IntTimes)){
+            # Recreate interaction basis
+            IntBasis = numeric()
+            whichNT = IntTimes[l]
+            for (k in 1:3){
+              IntBasis = cbind(IntBasis,JBasis[,1]*NTBasis[whichNT,k],JBasis[,2]*NTBasis[whichNT,k],JBasis[,3]*NTBasis[whichNT,k])
+            }
+            
+            # Calculate JD smooth at several different values of NT
+            IntAdjust = IntBasis%*%coef(tempMod)[JDNTInd]
+            RealFitCenterJDInt<- RealFitJ+coef(tempMod)[1]+IntAdjust # adjust offset
+            RealFitCenterJDInt<- inv.logit(RealFitCenterJDInt)
+            JDIntBootstrapFits<- (JBasis%*%t(JDayBootstrapCoefs))+coef(tempMod)[1]+(IntBasis%*%t(IntBootstrapCoefs)) # get spread of spline values at each X based on distributions of each coefficient
+            quant.func<- function(x){quantile(x, probs=c(0.025,0.975))}
+            cisJDInt<-apply(JDIntBootstrapFits, 1, quant.func) # confidence interval of smooth function estimate
+            JDIntCI = rbind(JDIntCI,cbind(JDayForPlotting,inv.logit(t(cisJDInt)),rep(l,times=5000))) # get lower and upper CI bounds
+            
+            JDIntplotDF = rbind(JDIntplotDF,cbind(JDayForPlotting,RealFitCenterJDInt,rep(l,times=5000)))
+            
+          }
+          
+          JDIntplotDF = as.data.frame(JDIntplotDF)
+          colnames(JDIntplotDF) = c("JulianDay","Data","Fit")
+          JDIntCI = as.data.frame(JDIntCI)
+          colnames(JDIntCI) = c("JulianDay","Ymin","Ymax","Fit2")
+          JDIntplotDF$Fit = as.factor(JDIntplotDF$Fit)
+          JDIntCI$Fit2 = as.factor(JDIntCI$Fit2)
+          
+          JDInt = ggplot(
+          ) + geom_line(data=JDIntplotDF,aes(x=JulianDay,y=Data,group=Fit,color=Fit),size=1
+          ) + scale_color_manual("Fit",values=c("#33FFE0","#335CFF","#D933FF","#FF334B"),
+                                 labels=c("Sunrise","Midday","Sunset","Midnight"),
+                                 name=NULL
+          ) + geom_ribbon(data=JDIntCI,aes(x=JulianDay,ymin=Ymin, ymax=1.05*Ymax,group=Fit2,fill=Fit2),
+                          alpha=0.2,
+                          stat ="identity"
+          ) + scale_fill_manual("Fit2",values=c("#33FFE0","#335CFF","#D933FF","#FF334B"),
+                                guide=NULL
+          ) + labs(x = "Julian Day",
+                   y = "Probability"
+          ) + coord_cartesian(xlim=c(1,365)
+          ) + scale_x_continuous(breaks=c(1,32,60,91,121,152,182,213,244,274,305,335),
+                                 label=c("J","F","M","A","M","J","J","A","S","O","N","D")
+          ) + theme(legend.position="right",
+                    axis.line = element_line(size=0.2),
+                    panel.background = element_blank()
+          )
+          
+          saveName = paste(outDir,'/',CTname,'/',sites[j],"_",int,"_GEEGLM_JDIntPlot_Partial.png",sep="")
+          ggsave(saveName,device="png", width=2, scale=5, height=1, units="in",dpi=600)
+          while (dev.cur()>1) {dev.off()}
+          saveName = paste(outDir,'/',CTname,'/',sites[j],"_",int,"_GEEGLM_JDIntPlot_Partial.pdf",sep="")
+          ggsave(saveName,device="pdf", width=2, scale=5, height=1, units="in",dpi=600)
+          while (dev.cur()>1) {dev.off()}
+          
+          # JD across value of NT
+          JDIntplotDF = numeric()
+          JDIntCI = numeric()
+          # Recreate interaction basis
+          IntBasis = numeric()
+          for (k in 1:3){
+            IntBasis = cbind(IntBasis,NTBasis[,k]*JBasis[,1],NTBasis[,k]*JBasis[,2],NTBasis[,k]*JBasis[,3])
           }
           
           # Calculate NT smooth at several different values of JD
           IntAdjust = IntBasis%*%coef(tempMod)[JDNTInd]
-          RealFitCenterNTInt<- RealFitNT+coef(tempMod)[1]+IntAdjust#-mean(JxInt) # adjust offset
-          RealFitCenterNTInt<- inv.logit(RealFitCenterNTInt)
-          NTIntBootstrapFits<- (NTBasis%*%t(NTBootstrapCoefs))+coef(tempMod)[1]+(IntBasis%*%t(IntBootstrapCoefs)) # get spread of spline values at each X based on distributions of each coefficient
-          quant.func<- function(x){quantile(x, probs=c(0.0275,0.975))}
-          cisNTInt<-apply(NTIntBootstrapFits, 1, quant.func)#-mean(JxInt) # confidence interval of smooth function estimate
-          NTIntCI = rbind(NTIntCI,cbind(NTForPlotting,inv.logit(t(cisNTInt)),rep(l,times=5000))) # get lower and upper CI bounds
-          
-          NTIntplotDF = rbind(NTIntplotDF,cbind(NTForPlotting,RealFitCenterNTInt,rep(l,times=5000)))
-          
-        }
-        
-        NTIntplotDF = as.data.frame(NTIntplotDF)
-        colnames(NTIntplotDF) = c("NormTime","Data","Fit")
-        NTIntCI = as.data.frame(NTIntCI)
-        colnames(NTIntCI) = c("NormTime","Ymin","Ymax","Fit2")
-        NTIntplotDF$Fit = as.factor(NTIntplotDF$Fit)
-        NTIntCI$Fit2 = as.factor(NTIntCI$Fit2)
-        
-        NTInt = ggplot(
-        ) + geom_line(data=NTIntplotDF,aes(x=NormTime,y=Data,group=Fit,color=Fit)
-        ) + scale_color_manual("Fit",values=c("#33FFE0","#4933FF","#D933FF","#FF334B"),
-                               labels=c("Winter","Spring","Summer","Fall"),
-                                              name="Season"
-        ) + geom_ribbon(data=NTIntCI,aes(x=NormTime,ymin=Ymin, ymax=1.05*Ymax,group=Fit2,fill=Fit2),
-                        alpha=0.2,
-                        stat ="identity"
-        ) + scale_fill_manual("Fit2",values=c("#33FFE0","#4933FF","#D933FF","#FF334B"),
-                              guide=NULL
-        ) + labs(x = NULL,
-                 y = "Probability"
-        ) + coord_cartesian(xlim=c(-1,1)
-        ) + scale_x_continuous(breaks=c(-1,0,1),
-                               labels=c("Sunrise","Sunset","Sunrise")
-        ) + theme(legend.position="right",
-                  axis.line = element_line(size=0.2),
-                  panel.background = element_blank()
-        )
-        
-        saveName = paste(outDir,'/',CTname,'/',sites[j],"_",int,"_GEEGLM_NTIntPlot_Probs.png",sep="")
-        ggsave(saveName,device="png", width=2, scale=5, height=1, units="in",dpi=600)
-        while (dev.cur()>1) {dev.off()}
-        saveName = paste(outDir,'/',CTname,'/',sites[j],"_",int,"_GEEGLM_NTIntPlot_Probs.pdf",sep="")
-        ggsave(saveName,device="pdf", width=2, scale=5, height=1, units="in",dpi=600)
-        while (dev.cur()>1) {dev.off()}
-        
-        
-        # Plot JD smooth at several different values of NT
-        JDIntplotDF = numeric()
-        JDIntCI = numeric()
-        IntTimes = c(1,1250,2500,3750)
-        for (l in 1:length(IntTimes)){
-          # Recreate interaction basis
-          IntBasis = numeric()
-          whichTime = IntTimes[l]
-          for (k in 1:3){
-            IntBasis = cbind(IntBasis,JBasis[,k]*NTBasis[whichTime,1],JBasis[,k]*NTBasis[whichTime,2],JBasis[,k]*NTBasis[whichTime,3])
-          }
-          
-          # Plot NT smooth at several different values of JD
-          IntAdjust = IntBasis%*%coef(tempMod)[JDNTInd]
-          RealFitCenterJDInt<- RealFitJ+coef(tempMod)[1]+IntAdjust#-mean(JxInt) # adjust offset
+          RealFitCenterJDInt<- RealFitJ+coef(tempMod)[1]+IntAdjust # adjust offset
           RealFitCenterJDInt<- inv.logit(RealFitCenterJDInt)
           JDIntBootstrapFits<- (JBasis%*%t(JDayBootstrapCoefs))+coef(tempMod)[1]+(IntBasis%*%t(IntBootstrapCoefs)) # get spread of spline values at each X based on distributions of each coefficient
           quant.func<- function(x){quantile(x, probs=c(0.025,0.975))}
-          cisJDInt<-apply(JDIntBootstrapFits, 1, quant.func)#-mean(JxInt) # confidence interval of smooth function estimate
-          JDIntCI = cbind(JDIntCI,inv.logit(t(cisJDInt))) # get lower and upper CI bounds
+          cisJDInt<-apply(JDIntBootstrapFits, 1, quant.func) # confidence interval of smooth function estimate
+          JDIntCI = cbind(JDayForPlotting,inv.logit(t(cisJDInt))) # get lower and upper CI bounds
           
-          JDIntplotDF = cbind(JDIntplotDF,RealFitCenterJDInt)
+          JDIntplotDF = cbind(JDayForPlotting,RealFitCenterJDInt)
           
+          
+          JDIntplotDF = as.data.frame(JDIntplotDF)
+          colnames(JDIntplotDF) = c("JulianDay","Data")
+          JDIntCI = as.data.frame(JDIntCI)
+          colnames(JDIntCI) = c("JulianDay","Ymin","Ymax")
+          
+          JDInt = ggplot(
+          ) + geom_line(data=JDIntplotDF,aes(x=JulianDay,y=Data,),size=1,color="51D4A5"
+          ) + geom_ribbon(data=JDIntCI,aes(x=JulianDay,ymin=Ymin, ymax=1.05*Ymax),
+                          fill="51D4A5",
+                          alpha=0.2,
+                          stat ="identity"
+          ) + labs(x = "Julian Day",
+                   y = "Probability"
+          ) + coord_cartesian(xlim=c(1,365)
+          ) + scale_x_continuous(breaks=c(1,32,60,91,121,152,182,213,244,274,305,335),
+                                 label=c("J","F","M","A","M","J","J","A","S","O","N","D")
+          ) + theme(legend.position="right",
+                    axis.line = element_line(size=0.2),
+                    panel.background = element_blank()
+          )
+          
+          saveName = paste(outDir,'/',CTname,'/',sites[j],"_",int,"_GEEGLM_JDIntPlot_Overall.png",sep="")
+          ggsave(saveName,device="png", width=2, scale=5, height=1, units="in",dpi=600)
+          while (dev.cur()>1) {dev.off()}
+          saveName = paste(outDir,'/',CTname,'/',sites[j],"_",int,"_GEEGLM_JDIntPlot_Overall.pdf",sep="")
+          ggsave(saveName,device="pdf", width=2, scale=5, height=1, units="in",dpi=600)
+          while (dev.cur()>1) {dev.off()}
         }
-        
-        JDIntplotDF = as.data.frame(cbind(JDayForPlotting,JDIntplotDF))
-        colnames(JDIntplotDF) = c("JulianDay","Fit1","Fit2","Fit3","Fit4")
-        JDIntCI = as.data.frame(JDIntCI)
-        colnames(JDIntCI) = c("Fit1Low","Fit1High","Fit2Low","Fit2High","Fit3Low","Fit3High","Fit4Low","Fit4High")
-        
-        JDInt = ggplot(JDIntplotDF,aes(x=JulianDay)
-        ) + geom_smooth(aes(y=Fit1,ymin=JDIntCI$Fit1Low, ymax=1.05*JDIntCI$Fit1High),
-                        fill = "#33FFE0",
-                        alpha=0.3,
-                        colour = "#33FFE0",
-                        stat ="identity"
-        ) + geom_smooth(aes(y=Fit2,ymin=JDIntCI$Fit2Low, ymax=1.05*JDIntCI$Fit2High),
-                        fill = "#4933FF",
-                        alpha=0.3,
-                        colour = "#4933FF",
-                        stat ="identity"
-        ) + geom_smooth(aes(y=Fit3,ymin=JDIntCI$Fit3Low, ymax=1.05*JDIntCI$Fit3High),
-                        fill = "#D933FF",
-                        alpha=0.3,
-                        colour = "#D933FF",
-                        stat ="identity"
-        ) + geom_smooth(aes(y=Fit4,ymin=JDIntCI$Fit4Low, ymax=1.05*JDIntCI$Fit4High),
-                        fill = "#FF3333",
-                        alpha=0.3,
-                        colour = "#FF3333",
-                        stat ="identity"
-        ) + labs(x = "Julian Day",
-                 y = "Probability",
-        ) + scale_x_continuous(breaks=c(1,32,60,91,121,152,182,213,244,274,305,335),
-                               label=c("J","F","M","A","M","J","J","A","S","O","N","D")
-        ) + theme(axis.line = element_line(size=0.2),
-                  panel.background = element_blank()
-        )
-        
-        saveName = paste(outDir,'/',CTname,'/',sites[j],"_",int,"_GEEGLM_JDIntPlot_Probs.png",sep="")
-        ggsave(saveName,device="png", width=2, scale=3, height=1, units="in",dpi=600)
-        while (dev.cur()>1) {dev.off()}
-        saveName = paste(outDir,'/',CTname,'/',sites[j],"_",int,"_GEEGLM_JDIntPlot_Probs.pdf",sep="")
-        ggsave(saveName,device="pdf", width=2, scale=3, height=1, units="in",dpi=600)
-        while (dev.cur()>1) {dev.off()}
-                        
         
       }
       
       
       # Year (as boxplot) -----------------------------------
       if (!isempty(YrInd)){
-        # Center intercept (1st level of year factor) at 0 and show other levels relative to it
         if (sites[j]=="HAT"){ # only 2 years of data from HATB
           AdjustedYearCoefs = data.frame(c(YearBootstrapCoefs[,1],
                                            YearBootstrapCoefs[,2]+mean(YearBootstrapCoefs[,1])),
@@ -456,14 +545,14 @@ if (sites[j]=="HAT"){
         ) + coord_cartesian(ylim = c(0,(1.5*max(iqr))+max(quants$q75))
         ) + theme(axis.line = element_line(size=0.2),
                   panel.background = element_blank())
-
+        
         saveName = paste(outDir,'/',CTname,'/',sites[j],"_",int,"_GEEGLM_YearPlotI_Probs.png",sep="")
         ggsave(saveName,device="png", width=2, scale=3, height=0.75, units="in",dpi=600)
         while (dev.cur()>1) {dev.off()}
         saveName = paste(outDir,'/',CTname,'/',sites[j],"_",int,"_GEEGLM_YearPlotI_Probs.pdf",sep="")
         ggsave(saveName,device="pdf", width=2, scale=3, height=0.75, units="in",dpi=600)
         while (dev.cur()>1) {dev.off()}
-
+        
         Yrdens = ggplot(thisSite,aes(x=StudyYear)
         )+geom_histogram(aes(y=..ncount..),
                          fill='#66B2FF',
@@ -478,300 +567,300 @@ if (sites[j]=="HAT"){
         saveName = paste(outDir,'/',CTname,'/',sites[j],"_",int,"_GEEGLM_YrDataDensity.pdf",sep="")
         ggsave(saveName,device="pdf", width=1, scale=4, height=0.5, units="in",dpi=600)
         while (dev.cur()>1) {dev.off()}
-
+        
       }
     }
   }
   
   sites=list()
   for (k in 1:numel(LunmodFiles)){
-
-  #   site = str_remove(LunmodFiles[k],paste(outDir,"/",CTname,"/",sep=""))
-  #   sites = c(sites,str_remove(site,"_5minBin_Model_LunPhaseAltPres.Rdata"))
-  #   if (sites[k]=="NULL"){
-  #     stop("Didn't get site name")}
-  # 
-  #   load(LunmodFiles[k]) # load LunPhase + Alt + Pres model
-  # 
-  #   if (lunMod$geese$error==0){
-  # 
-  #     # find associated master dataframe
-  #     thisSpec = which(str_detect(lunList,CTname))
-  #     atSite = which(str_detect(lunList,unlist(sites[k])))
-  #     thisModInd = intersect(thisSpec,atSite)
-  #     masterLun = data.frame(read.csv(lunList[thisModInd])) # lunar model data frame
-  # 
-  #     masterLun$MoonAltitude = masterLun$MoonAltitude*(180/pi) # convert altitude from radians to degrees
-  # 
-  #     if (sites[k]=="HAT"){
-  #       startInd = which(masterLun$NightBinTimes>=as.POSIXct('2017-05-01 00:00:00',format="%Y-%m-%d %H:%M:%S",tz="GMT"))
-  #       masterLun = masterLun[startInd,]
-  #     }
-  # 
-  #     # Indices of coefficients for each covar
-  #     MPInd = numeric()
-  #     AltInd = numeric()
-  #     PresInd = numeric()
-  #     if (lunMod$formula =='NightPres ~ MPhs + MAs + MPrF'){
-  #       MPInd = c(2:4)
-  #       AltInd = c(5:9)
-  #       PresInd = c(1,10:11)
-  #     } else if (lunMod$formula =='NightPres ~ MPhs + MAs'){
-  #       MPInd = c(2:4)
-  #       AltInd = c(5:9)
-  #     } else if (lunMod$formula =='NightPres ~ MPhs + MprF'){
-  #       MPInd = c(2:4)
-  #       PresInd = c(1,5:6)
-  #     } else if (lunMod$formula =='NightPres ~ MAs + MprF'){
-  #       AltInd = c(2,3)
-  #       PresInd = c(1,4:5)
-  #     } else if (lunMod$formula =='NightPres ~ MPhs'){
-  #       MPInd = c(2:4)
-  #     } else if (lunMod$formula =='NightPres ~ MAs'){
-  #       AltInd = c(2:6)
-  #     } else if (lunMod$formula =='NightPres ~ MPrF'){
-  #       PresInd = c(1:3)
-  #     }
-  # 
-  #     ## Create model fit plots --------------------------
-  #     modFit = data.frame(Date=as.Date(masterLun$NightBinTimes),
-  #                         Pres=masterLun$NightPres,
-  #                         Fits=lunMod$fitted.values,
-  #                         Res=lunMod$residuals)
-  # 
-  #     PresPlot = ggplot(modFit
-  #     ) + geom_point(aes(x=Date,y=Pres),
-  #                    color="#000000",
-  #                    size=2
-  #     )+scale_x_continuous(breaks=c(as.Date("2016-05-01"),
-  #                                   as.Date("2016-11-01"),
-  #                                   as.Date("2017-05-01"),
-  #                                   as.Date("2017-11-01"),
-  #                                   as.Date("2018-05-01"),
-  #                                   as.Date("2018-11-01"),
-  #                                   as.Date("2019-04-30"))
-  #     ) + labs(x="",y="Presence")
-  #     FitPlot = ggplot(modFit
-  #     )+geom_point(aes(x=Date,y=Fits),
-  #                  color="#1976D2",
-  #                  size=2
-  #     )+scale_x_continuous(breaks=c(as.Date("2016-05-01"),
-  #                                   as.Date("2016-11-01"),
-  #                                   as.Date("2017-05-01"),
-  #                                   as.Date("2017-11-01"),
-  #                                   as.Date("2018-05-01"),
-  #                                   as.Date("2018-11-01"),
-  #                                   as.Date("2019-04-30"))
-  #     ) + labs(x="",y="Fitted Values")
-  #     ModRes = ggplot(modFit
-  #     ) + geom_point(aes(x=Date,y=Res),
-  #                    size=2
-  #     ) +scale_x_continuous(breaks=c(as.Date("2016-05-01"),
-  #                                    as.Date("2016-11-01"),
-  #                                    as.Date("2017-05-01"),
-  #                                    as.Date("2017-11-01"),
-  #                                    as.Date("2018-05-01"),
-  #                                    as.Date("2018-11-01"),
-  #                                    as.Date("2019-04-30"))
-  #     ) + labs(x="",y="Residuals")
-  #     HL = hoslem.test(masterLun$NightPres,fitted(lunMod))
-  #     HLPlot = data.frame(Expected=HL$expected[,1],Observed=HL$observed[,1])
-  #     HLPlot$X = seq(min(HL$observed[,1]),max(HL$observed[,1]),length.out=length(HLPlot$Expected))
-  #     HLPlot$Y = seq(min(HL$observed[,1]),max(HL$observed[,1]),length.out=length(HLPlot$Expected))
-  # 
-  #     ObsPred = ggplot(HLPlot
-  #     ) + geom_line(aes(x=X,y=Y)
-  #     ) + geom_point(aes(y=Expected,x=Observed)
-  #     ) + labs(x="Observed",y="Expected"
-  #     ) + annotate("text",
-  #                  label=paste('p-value: ',as.character(HL$p.value),sep=""),
-  #                  size=4,
-  #                  x=1.005*min(HL$observed[,1]),
-  #                  y=0.999*max(HL$expected[,1]))
-  #     png(file=paste(outDir,'/',CTname,'/',sites[k],"_LunModelFit.png",sep=""),width = 1400, height = 800, units = "px")
-  #     grid.arrange(PresPlot,FitPlot,ModRes,ObsPred,ncol=1,nrow=4,top=paste(CTname,'at',sites[k]))
-  #     while (dev.cur()>1) {dev.off()}
-  # 
-  #     binRes = binned_residuals_RC(lunMod)
-  #     resid_ok = sum(binRes$group == "yes")/length(binRes$group)
-  #     R2 = r2_tjur_RC(lunMod)
-  #     thisModPer = cbind(CTname,sites[k],round(resid_ok,digits=5),round(as.numeric(R2),digits=5))
-  #     lunPerf = rbind(lunPerf,thisModPer)
-  #     
-  #     png(file=paste(outDir,'/',CTname,'/',sites[k],"_LunBinResid.png",sep=""),width = 400, height = 300, units = "px")
-  #     print(binned_residuals_RC(lunMod))
-  #     while (dev.cur()>1) {dev.off()}
-  # 
-  #     ## Bootstrap GEEGLM parameter estimates for later construction of confidence intervals ----------------
-  # 
-  #     BootstrapParameters2<-rmvnorm(10000, coef(lunMod), summary(lunMod)$cov.unscaled)
-  #     MoonPhaseBootstrapCoefs<- BootstrapParameters2[,MPInd]
-  #     MoonAltBootstrapCoefs<- BootstrapParameters2[,AltInd]
-  #     MoonPresBootstrapCoefs<- BootstrapParameters2[,PresInd]
-  # 
-  #     # Predict presence at each X value using model coefficients
-  #     JxMP = model.matrix(lunMod)[,MPInd]*coef(lunMod)[MPInd]
-  #     JxAlt = model.matrix(lunMod)[,AltInd]*coef(lunMod)[AltInd]
-  #     JxPres = model.matrix(lunMod)[,PresInd]*coef(lunMod)[PresInd]
-  # 
-  #     ## MoonPhase ---------------------------
-  #     if (!isempty(MPInd)){
-  #       MoonPhaseForPlotting<- seq(0, 1, length=5000)
-  #       MPBasis<- mSpline(MoonPhaseForPlotting,
-  #                         knots=quantile(masterLun$MoonPhase,probs=c(0.275,0.5,0.725)),
-  #                         Boundary.knots=c(0,1),
-  #                         periodic=T)
-  #       RealFitMP<- MPBasis%*%coef(lunMod)[MPInd] # multiply basis functions by model coefficients to get values of spline at each X
-  #       RealFitCenterMP<- RealFitMP+coef(lunMod)[1]-mean(JxMP)# adjust offset
-  #       RealFitCenterMP = inv.logit(RealFitCenterMP)
-  #       MPBootstrapFits<- (MPBasis%*%t(MoonPhaseBootstrapCoefs))+coef(lunMod)[1] # get spread of spline values at each X based on distributions of each coefficient
-  #       quant.func<- function(x){quantile(x, probs=c(0.025,0.975))}
-  #       cisMP<-apply(MPBootstrapFits, 1, quant.func)-mean(JxMP) # confidence interval of smooth function estimate
-  #       MPcil = inv.logit(cisMP[1,])
-  #       MPciu = inv.logit(cisMP[2,])
-  # 
-  #       MPplotDF = data.frame(MoonPhaseForPlotting,RealFitCenterMP)
-  #       colnames(MPplotDF) = c("MoonPhase","Fit")
-  # 
-  #       MP = ggplot(MPplotDF, aes(MoonPhase, Fit),
-  #       ) + geom_smooth(fill = "grey",
-  #                       colour = "black",
-  #                       aes(ymin=MPcil, ymax=MPciu),
-  #                       stat ="identity"
-  #       ) + labs(x = "Moon Phase",
-  #                y = "Probability",
-  #       ) + theme(axis.line = element_line(size=0.2),
-  #                 panel.background = element_blank()
-  #       )
-  # 
-  #       saveName = paste(outDir,'/',CTname,'/',sites[k],"_",int,"_GEEGLM_MoonPhasePlot_Probs.png",sep="")
-  #       ggsave(saveName,device="png", width=2, scale=3, height=0.5, units="in",dpi=600)
-  #       while (dev.cur()>1) {dev.off()}
-  #       saveName = paste(outDir,'/',CTname,'/',sites[k],"_",int,"_GEEGLM_MoonPhasePlot_Probs.pdf",sep="")
-  #       ggsave(saveName,device="pdf", width=2, scale=3, height=0.5, units="in",dpi=600)
-  #       while (dev.cur()>1) {dev.off()}
-  # 
-  #       MPdens =  ggplot(masterLun,aes(x=MoonPhase)
-  #       )+geom_histogram(aes(y=..ncount..),
-  #                        fill='#66B2FF',
-  #                        binwidth = 0.5,
-  #                        alpha=0.5
-  #       ) + scale_x_continuous(breaks=c(0,0.5,0.99),
-  #                              label=c("0","0.5","1")
-  #       ) + labs(y="Normalized Count",x=NULL
-  #       ) + theme_minimal()
-  #       saveName = paste(outDir,'/',CTname,'/',sites[k],"_",int,"_GEEGLM_MPDataDensity.png",sep="")
-  #       ggsave(saveName,device="png", width=4, scale=4, height=0.5, units="in",dpi=600)
-  #       while (dev.cur()>1) {dev.off()}
-  #       saveName = paste(outDir,'/',CTname,'/',sites[k],"_",int,"_GEEGLM_MPDataDensity.pdf",sep="")
-  #       ggsave(saveName,device="pdf", width=4, scale=4, height=0.5, units="in",dpi=600)
-  #       while (dev.cur()>1) {dev.off()}
-  #     }
-  #     ## Moon Altitude ---------------------------
-  #     if (!isempty(AltInd)){
-  #       MoonAltForPlotting<- seq(min(masterLun$MoonAltitude),max(masterLun$MoonAltitude), length=5000)
-  #       AltBasis<- mSpline(MoonAltForPlotting,
-  #                          knots=quantile(masterLun$MoonAltitude,probs=c(0.333,0.666)),
-  #                          Boundary.knots=c(min(masterLun$MoonAltitude),max(masterLun$MoonAltitude)))
-  #       RealFitAlt<- AltBasis%*%coef(lunMod)[AltInd] # multiply basis functions by model coefficients to get values of spline at each X
-  #       RealFitCenterAlt<- RealFitAlt+coef(lunMod)[1]-mean(JxAlt)# adjust offset
-  #       RealFitCenterAlt = inv.logit(RealFitCenterAlt)
-  #       AltBootstrapFits<- (AltBasis%*%t(MoonAltBootstrapCoefs))+coef(lunMod)[1] # get spread of spline values at each X based on distributions of each coefficient
-  #       quant.func<- function(x){quantile(x, probs=c(0.025,0.975))}
-  #       cisAlt<-apply(AltBootstrapFits, 1, quant.func)-mean(JxAlt) # confidence interval of smooth function estimate
-  #       Altcil = inv.logit(cisAlt[1,])
-  #       Altciu = inv.logit(cisAlt[2,])
-  # 
-  #       AltplotDF = data.frame(MoonAltForPlotting,RealFitCenterAlt)
-  #       colnames(AltplotDF) = c("MoonAlt","Fit")
-  # 
-  #       MoonAlt = ggplot(AltplotDF, aes(MoonAlt, Fit),
-  #       ) + geom_smooth(fill = "grey",
-  #                       colour = "black",
-  #                       aes(ymin=Altcil, ymax=Altciu),
-  #                       stat ="identity"
-  #       ) + labs(x = "Moon Altitude",
-  #                y = "Probability",
-  #       ) + theme(axis.line = element_line(size=0.2),
-  #                 panel.background = element_blank()
-  #       )
-  #       saveName = paste(outDir,'/',CTname,'/',sites[k],"_",int,"_GEEGLM_MoonAltPlot_Probs.png",sep="")
-  #       ggsave(saveName,device="png", width=2, scale=3, height=0.5, units="in",dpi=600)
-  #       while (dev.cur()>1) {dev.off()}
-  #       saveName = paste(outDir,'/',CTname,'/',sites[k],"_",int,"_GEEGLM_MoonAltPlot_Probs.pdf",sep="")
-  #       ggsave(saveName,device="pdf", width=2, scale=3, height=0.5, units="in",dpi=600)
-  #       while (dev.cur()>1) {dev.off()}
-  # 
-  #       Altdens =  ggplot(masterLun,aes(x=MoonAltitude)
-  #       )+geom_histogram(aes(y=..ncount..),
-  #                        fill='#66B2FF',
-  #                        binwidth = 0.5,
-  #                        alpha=0.5
-  #       ) + scale_x_continuous(breaks=c(0,45,90),
-  #                              label=c("0","45","90")
-  #       ) + labs(y="Normalized Count",x=NULL
-  #       ) + theme_minimal()
-  #       saveName = paste(outDir,'/',CTname,'/',sites[k],"_",int,"_GEEGLM_MoonAltDataDensity.png",sep="")
-  #       ggsave(saveName,device="png", width=4, scale=4, height=0.5, units="in",dpi=600)
-  #       while (dev.cur()>1) {dev.off()}
-  #       saveName = paste(outDir,'/',CTname,'/',sites[k],"_",int,"_GEEGLM_MoonAltDataDensity.pdf",sep="")
-  #       ggsave(saveName,device="pdf", width=4, scale=4, height=0.5, units="in",dpi=600)
-  #       while (dev.cur()>1) {dev.off()}
-  #     }
-  #     ## Moon Presence ---------------------------
-  #     if (!isempty(PresInd)){
-  #       if (sites[j]=="HAT"){
-  #         AdjustedMoonPresCoefs = data.frame(c(MoonPresBootstrapCoefs[,1],
-  #                                              MoonPresBootstrapCoefs[,2]+mean(MoonPresBootstrapCoefs[,1])),
-  #                                            as.factor(rep(1:3,each=10000)))
-  #       } else {
-  #         AdjustedMoonPresCoefs = data.frame(c(MoonPresBootstrapCoefs[,1],
-  #                                              MoonPresBootstrapCoefs[,2]+mean(MoonPresBootstrapCoefs[,1]),
-  #                                              MoonPresBootstrapCoefs[,3]+mean(MoonPresBootstrapCoefs[,1])),
-  #                                            as.factor(rep(1:3,each=10000)))
-  #       }
-  #       colnames(AdjustedMoonPresCoefs) = c("Coefficient","Presence")
-  #       AdjustedMoonPresCoefs$Prob = inv.logit(AdjustedMoonPresCoefs$Coefficient)
-  # 
-  #       # calculate quantiles for plotting limits
-  #       quants = AdjustedMoonPresCoefs %>%
-  #         group_by(Presence) %>%
-  #         summarize(q25 = quantile(Prob,probs=0.25),
-  #                   q75 = quantile(Prob,probs=0.75))
-  #       iqr = quants$q75-quants$q25
-  # 
-  #       MPres = ggplot(AdjustedMoonPresCoefs,aes(Presence,Prob)
-  #       ) + geom_boxplot(outlier.shape=NA,
-  #                        lwd=0.2
-  #       ) + labs(x='MoonPresence',y="Probability"
-  #       ) + coord_cartesian(ylim = c(0,(1.5*max(iqr))+max(quants$q75))
-  #       ) + scale_x_discrete(breaks=c(1,2,3),label=c("Before","MoonUp","After")
-  #       ) + theme(axis.line = element_line(size=0.2),
-  #                 panel.background = element_blank())
-  #       saveName = paste(outDir,'/',CTname,'/',sites[k],"_",int,"_GEEGLM_MoonPresPlot_Probs.png",sep="")
-  #       ggsave(saveName,device="png", width=2, scale=3, height=0.75, units="in",dpi=600)
-  #       while (dev.cur()>1) {dev.off()}
-  #       saveName = paste(outDir,'/',CTname,'/',sites[k],"_",int,"_GEEGLM_MoonPresPlot_Probs.pdf",sep="")
-  #       ggsave(saveName,device="pdf", width=2, scale=3, height=0.75, units="in",dpi=600)
-  #       while (dev.cur()>1) {dev.off()}
-  # 
-  #       Presdens =  ggplot(masterLun,aes(x=as.numeric(as.factor(MoonPres)))
-  #       )+geom_histogram(aes(y=..ncount..),
-  #                        fill='#66B2FF',
-  #                        binwidth = 0.5,
-  #                        alpha=0.5
-  #       ) + scale_x_discrete(breaks=c(1,2,3),
-  #                            label=c("Pre","MoonUp","Post")
-  #       ) + labs(y="Normalized Count",x=NULL
-  #       ) + theme_minimal()
-  #       saveName = paste(outDir,'/',CTname,'/',sites[k],"_",int,"_GEEGLM_MoonPresDataDensity.png",sep="")
-  #       ggsave(saveName,device="png", width=4, scale=4, height=0.5, units="in",dpi=600)
-  #       while (dev.cur()>1) {dev.off()}
-  #       saveName = paste(outDir,'/',CTname,'/',sites[k],"_",int,"_GEEGLM_MoonPresDataDensity.pdf",sep="")
-  #       ggsave(saveName,device="pdf", width=4, scale=4, height=0.5, units="in",dpi=600)
-  #       while (dev.cur()>1) {dev.off()}
-  #     }
-  #   }
+    
+    #   site = str_remove(LunmodFiles[k],paste(outDir,"/",CTname,"/",sep=""))
+    #   sites = c(sites,str_remove(site,"_5minBin_Model_LunPhaseAltPres.Rdata"))
+    #   if (sites[k]=="NULL"){
+    #     stop("Didn't get site name")}
+    # 
+    #   load(LunmodFiles[k]) # load LunPhase + Alt + Pres model
+    # 
+    #   if (lunMod$geese$error==0){
+    # 
+    #     # find associated master dataframe
+    #     thisSpec = which(str_detect(lunList,CTname))
+    #     atSite = which(str_detect(lunList,unlist(sites[k])))
+    #     thisModInd = intersect(thisSpec,atSite)
+    #     masterLun = data.frame(read.csv(lunList[thisModInd])) # lunar model data frame
+    # 
+    #     masterLun$MoonAltitude = masterLun$MoonAltitude*(180/pi) # convert altitude from radians to degrees
+    # 
+    #     if (sites[k]=="HAT"){
+    #       startInd = which(masterLun$NightBinTimes>=as.POSIXct('2017-05-01 00:00:00',format="%Y-%m-%d %H:%M:%S",tz="GMT"))
+    #       masterLun = masterLun[startInd,]
+    #     }
+    # 
+    #     # Indices of coefficients for each covar
+    #     MPInd = numeric()
+    #     AltInd = numeric()
+    #     PresInd = numeric()
+    #     if (lunMod$formula =='NightPres ~ MPhs + MAs + MPrF'){
+    #       MPInd = c(2:4)
+    #       AltInd = c(5:9)
+    #       PresInd = c(1,10:11)
+    #     } else if (lunMod$formula =='NightPres ~ MPhs + MAs'){
+    #       MPInd = c(2:4)
+    #       AltInd = c(5:9)
+    #     } else if (lunMod$formula =='NightPres ~ MPhs + MprF'){
+    #       MPInd = c(2:4)
+    #       PresInd = c(1,5:6)
+    #     } else if (lunMod$formula =='NightPres ~ MAs + MprF'){
+    #       AltInd = c(2,3)
+    #       PresInd = c(1,4:5)
+    #     } else if (lunMod$formula =='NightPres ~ MPhs'){
+    #       MPInd = c(2:4)
+    #     } else if (lunMod$formula =='NightPres ~ MAs'){
+    #       AltInd = c(2:6)
+    #     } else if (lunMod$formula =='NightPres ~ MPrF'){
+    #       PresInd = c(1:3)
+    #     }
+    # 
+    #     ## Create model fit plots --------------------------
+    #     modFit = data.frame(Date=as.Date(masterLun$NightBinTimes),
+    #                         Pres=masterLun$NightPres,
+    #                         Fits=lunMod$fitted.values,
+    #                         Res=lunMod$residuals)
+    # 
+    #     PresPlot = ggplot(modFit
+    #     ) + geom_point(aes(x=Date,y=Pres),
+    #                    color="#000000",
+    #                    size=2
+    #     )+scale_x_continuous(breaks=c(as.Date("2016-05-01"),
+    #                                   as.Date("2016-11-01"),
+    #                                   as.Date("2017-05-01"),
+    #                                   as.Date("2017-11-01"),
+    #                                   as.Date("2018-05-01"),
+    #                                   as.Date("2018-11-01"),
+    #                                   as.Date("2019-04-30"))
+    #     ) + labs(x="",y="Presence")
+    #     FitPlot = ggplot(modFit
+    #     )+geom_point(aes(x=Date,y=Fits),
+    #                  color="#1976D2",
+    #                  size=2
+    #     )+scale_x_continuous(breaks=c(as.Date("2016-05-01"),
+    #                                   as.Date("2016-11-01"),
+    #                                   as.Date("2017-05-01"),
+    #                                   as.Date("2017-11-01"),
+    #                                   as.Date("2018-05-01"),
+    #                                   as.Date("2018-11-01"),
+    #                                   as.Date("2019-04-30"))
+    #     ) + labs(x="",y="Fitted Values")
+    #     ModRes = ggplot(modFit
+    #     ) + geom_point(aes(x=Date,y=Res),
+    #                    size=2
+    #     ) +scale_x_continuous(breaks=c(as.Date("2016-05-01"),
+    #                                    as.Date("2016-11-01"),
+    #                                    as.Date("2017-05-01"),
+    #                                    as.Date("2017-11-01"),
+    #                                    as.Date("2018-05-01"),
+    #                                    as.Date("2018-11-01"),
+    #                                    as.Date("2019-04-30"))
+    #     ) + labs(x="",y="Residuals")
+    #     HL = hoslem.test(masterLun$NightPres,fitted(lunMod))
+    #     HLPlot = data.frame(Expected=HL$expected[,1],Observed=HL$observed[,1])
+    #     HLPlot$X = seq(min(HL$observed[,1]),max(HL$observed[,1]),length.out=length(HLPlot$Expected))
+    #     HLPlot$Y = seq(min(HL$observed[,1]),max(HL$observed[,1]),length.out=length(HLPlot$Expected))
+    # 
+    #     ObsPred = ggplot(HLPlot
+    #     ) + geom_line(aes(x=X,y=Y)
+    #     ) + geom_point(aes(y=Expected,x=Observed)
+    #     ) + labs(x="Observed",y="Expected"
+    #     ) + annotate("text",
+    #                  label=paste('p-value: ',as.character(HL$p.value),sep=""),
+    #                  size=4,
+    #                  x=1.005*min(HL$observed[,1]),
+    #                  y=0.999*max(HL$expected[,1]))
+    #     png(file=paste(outDir,'/',CTname,'/',sites[k],"_LunModelFit.png",sep=""),width = 1400, height = 800, units = "px")
+    #     grid.arrange(PresPlot,FitPlot,ModRes,ObsPred,ncol=1,nrow=4,top=paste(CTname,'at',sites[k]))
+    #     while (dev.cur()>1) {dev.off()}
+    # 
+    #     binRes = binned_residuals_RC(lunMod)
+    #     resid_ok = sum(binRes$group == "yes")/length(binRes$group)
+    #     R2 = r2_tjur_RC(lunMod)
+    #     thisModPer = cbind(CTname,sites[k],round(resid_ok,digits=5),round(as.numeric(R2),digits=5))
+    #     lunPerf = rbind(lunPerf,thisModPer)
+    #     
+    #     png(file=paste(outDir,'/',CTname,'/',sites[k],"_LunBinResid.png",sep=""),width = 400, height = 300, units = "px")
+    #     print(binned_residuals_RC(lunMod))
+    #     while (dev.cur()>1) {dev.off()}
+    # 
+    #     ## Bootstrap GEEGLM parameter estimates for later construction of confidence intervals ----------------
+    # 
+    #     BootstrapParameters2<-rmvnorm(10000, coef(lunMod), summary(lunMod)$cov.unscaled)
+    #     MoonPhaseBootstrapCoefs<- BootstrapParameters2[,MPInd]
+    #     MoonAltBootstrapCoefs<- BootstrapParameters2[,AltInd]
+    #     MoonPresBootstrapCoefs<- BootstrapParameters2[,PresInd]
+    # 
+    #     # Predict presence at each X value using model coefficients
+    #     JxMP = model.matrix(lunMod)[,MPInd]*coef(lunMod)[MPInd]
+    #     JxAlt = model.matrix(lunMod)[,AltInd]*coef(lunMod)[AltInd]
+    #     JxPres = model.matrix(lunMod)[,PresInd]*coef(lunMod)[PresInd]
+    # 
+    #     ## MoonPhase ---------------------------
+    #     if (!isempty(MPInd)){
+    #       MoonPhaseForPlotting<- seq(0, 1, length=5000)
+    #       MPBasis<- mSpline(MoonPhaseForPlotting,
+    #                         knots=quantile(masterLun$MoonPhase,probs=c(0.275,0.5,0.725)),
+    #                         Boundary.knots=c(0,1),
+    #                         periodic=T)
+    #       RealFitMP<- MPBasis%*%coef(lunMod)[MPInd] # multiply basis functions by model coefficients to get values of spline at each X
+    #       RealFitCenterMP<- RealFitMP+coef(lunMod)[1]-mean(JxMP)# adjust offset
+    #       RealFitCenterMP = inv.logit(RealFitCenterMP)
+    #       MPBootstrapFits<- (MPBasis%*%t(MoonPhaseBootstrapCoefs))+coef(lunMod)[1] # get spread of spline values at each X based on distributions of each coefficient
+    #       quant.func<- function(x){quantile(x, probs=c(0.025,0.975))}
+    #       cisMP<-apply(MPBootstrapFits, 1, quant.func)-mean(JxMP) # confidence interval of smooth function estimate
+    #       MPcil = inv.logit(cisMP[1,])
+    #       MPciu = inv.logit(cisMP[2,])
+    # 
+    #       MPplotDF = data.frame(MoonPhaseForPlotting,RealFitCenterMP)
+    #       colnames(MPplotDF) = c("MoonPhase","Fit")
+    # 
+    #       MP = ggplot(MPplotDF, aes(MoonPhase, Fit),
+    #       ) + geom_smooth(fill = "grey",
+    #                       colour = "black",
+    #                       aes(ymin=MPcil, ymax=MPciu),
+    #                       stat ="identity"
+    #       ) + labs(x = "Moon Phase",
+    #                y = "Probability",
+    #       ) + theme(axis.line = element_line(size=0.2),
+    #                 panel.background = element_blank()
+    #       )
+    # 
+    #       saveName = paste(outDir,'/',CTname,'/',sites[k],"_",int,"_GEEGLM_MoonPhasePlot_Probs.png",sep="")
+    #       ggsave(saveName,device="png", width=2, scale=3, height=0.5, units="in",dpi=600)
+    #       while (dev.cur()>1) {dev.off()}
+    #       saveName = paste(outDir,'/',CTname,'/',sites[k],"_",int,"_GEEGLM_MoonPhasePlot_Probs.pdf",sep="")
+    #       ggsave(saveName,device="pdf", width=2, scale=3, height=0.5, units="in",dpi=600)
+    #       while (dev.cur()>1) {dev.off()}
+    # 
+    #       MPdens =  ggplot(masterLun,aes(x=MoonPhase)
+    #       )+geom_histogram(aes(y=..ncount..),
+    #                        fill='#66B2FF',
+    #                        binwidth = 0.5,
+    #                        alpha=0.5
+    #       ) + scale_x_continuous(breaks=c(0,0.5,0.99),
+    #                              label=c("0","0.5","1")
+    #       ) + labs(y="Normalized Count",x=NULL
+    #       ) + theme_minimal()
+    #       saveName = paste(outDir,'/',CTname,'/',sites[k],"_",int,"_GEEGLM_MPDataDensity.png",sep="")
+    #       ggsave(saveName,device="png", width=4, scale=4, height=0.5, units="in",dpi=600)
+    #       while (dev.cur()>1) {dev.off()}
+    #       saveName = paste(outDir,'/',CTname,'/',sites[k],"_",int,"_GEEGLM_MPDataDensity.pdf",sep="")
+    #       ggsave(saveName,device="pdf", width=4, scale=4, height=0.5, units="in",dpi=600)
+    #       while (dev.cur()>1) {dev.off()}
+    #     }
+    #     ## Moon Altitude ---------------------------
+    #     if (!isempty(AltInd)){
+    #       MoonAltForPlotting<- seq(min(masterLun$MoonAltitude),max(masterLun$MoonAltitude), length=5000)
+    #       AltBasis<- mSpline(MoonAltForPlotting,
+    #                          knots=quantile(masterLun$MoonAltitude,probs=c(0.333,0.666)),
+    #                          Boundary.knots=c(min(masterLun$MoonAltitude),max(masterLun$MoonAltitude)))
+    #       RealFitAlt<- AltBasis%*%coef(lunMod)[AltInd] # multiply basis functions by model coefficients to get values of spline at each X
+    #       RealFitCenterAlt<- RealFitAlt+coef(lunMod)[1]-mean(JxAlt)# adjust offset
+    #       RealFitCenterAlt = inv.logit(RealFitCenterAlt)
+    #       AltBootstrapFits<- (AltBasis%*%t(MoonAltBootstrapCoefs))+coef(lunMod)[1] # get spread of spline values at each X based on distributions of each coefficient
+    #       quant.func<- function(x){quantile(x, probs=c(0.025,0.975))}
+    #       cisAlt<-apply(AltBootstrapFits, 1, quant.func)-mean(JxAlt) # confidence interval of smooth function estimate
+    #       Altcil = inv.logit(cisAlt[1,])
+    #       Altciu = inv.logit(cisAlt[2,])
+    # 
+    #       AltplotDF = data.frame(MoonAltForPlotting,RealFitCenterAlt)
+    #       colnames(AltplotDF) = c("MoonAlt","Fit")
+    # 
+    #       MoonAlt = ggplot(AltplotDF, aes(MoonAlt, Fit),
+    #       ) + geom_smooth(fill = "grey",
+    #                       colour = "black",
+    #                       aes(ymin=Altcil, ymax=Altciu),
+    #                       stat ="identity"
+    #       ) + labs(x = "Moon Altitude",
+    #                y = "Probability",
+    #       ) + theme(axis.line = element_line(size=0.2),
+    #                 panel.background = element_blank()
+    #       )
+    #       saveName = paste(outDir,'/',CTname,'/',sites[k],"_",int,"_GEEGLM_MoonAltPlot_Probs.png",sep="")
+    #       ggsave(saveName,device="png", width=2, scale=3, height=0.5, units="in",dpi=600)
+    #       while (dev.cur()>1) {dev.off()}
+    #       saveName = paste(outDir,'/',CTname,'/',sites[k],"_",int,"_GEEGLM_MoonAltPlot_Probs.pdf",sep="")
+    #       ggsave(saveName,device="pdf", width=2, scale=3, height=0.5, units="in",dpi=600)
+    #       while (dev.cur()>1) {dev.off()}
+    # 
+    #       Altdens =  ggplot(masterLun,aes(x=MoonAltitude)
+    #       )+geom_histogram(aes(y=..ncount..),
+    #                        fill='#66B2FF',
+    #                        binwidth = 0.5,
+    #                        alpha=0.5
+    #       ) + scale_x_continuous(breaks=c(0,45,90),
+    #                              label=c("0","45","90")
+    #       ) + labs(y="Normalized Count",x=NULL
+    #       ) + theme_minimal()
+    #       saveName = paste(outDir,'/',CTname,'/',sites[k],"_",int,"_GEEGLM_MoonAltDataDensity.png",sep="")
+    #       ggsave(saveName,device="png", width=4, scale=4, height=0.5, units="in",dpi=600)
+    #       while (dev.cur()>1) {dev.off()}
+    #       saveName = paste(outDir,'/',CTname,'/',sites[k],"_",int,"_GEEGLM_MoonAltDataDensity.pdf",sep="")
+    #       ggsave(saveName,device="pdf", width=4, scale=4, height=0.5, units="in",dpi=600)
+    #       while (dev.cur()>1) {dev.off()}
+    #     }
+    #     ## Moon Presence ---------------------------
+    #     if (!isempty(PresInd)){
+    #       if (sites[j]=="HAT"){
+    #         AdjustedMoonPresCoefs = data.frame(c(MoonPresBootstrapCoefs[,1],
+    #                                              MoonPresBootstrapCoefs[,2]+mean(MoonPresBootstrapCoefs[,1])),
+    #                                            as.factor(rep(1:3,each=10000)))
+    #       } else {
+    #         AdjustedMoonPresCoefs = data.frame(c(MoonPresBootstrapCoefs[,1],
+    #                                              MoonPresBootstrapCoefs[,2]+mean(MoonPresBootstrapCoefs[,1]),
+    #                                              MoonPresBootstrapCoefs[,3]+mean(MoonPresBootstrapCoefs[,1])),
+    #                                            as.factor(rep(1:3,each=10000)))
+    #       }
+    #       colnames(AdjustedMoonPresCoefs) = c("Coefficient","Presence")
+    #       AdjustedMoonPresCoefs$Prob = inv.logit(AdjustedMoonPresCoefs$Coefficient)
+    # 
+    #       # calculate quantiles for plotting limits
+    #       quants = AdjustedMoonPresCoefs %>%
+    #         group_by(Presence) %>%
+    #         summarize(q25 = quantile(Prob,probs=0.25),
+    #                   q75 = quantile(Prob,probs=0.75))
+    #       iqr = quants$q75-quants$q25
+    # 
+    #       MPres = ggplot(AdjustedMoonPresCoefs,aes(Presence,Prob)
+    #       ) + geom_boxplot(outlier.shape=NA,
+    #                        lwd=0.2
+    #       ) + labs(x='MoonPresence',y="Probability"
+    #       ) + coord_cartesian(ylim = c(0,(1.5*max(iqr))+max(quants$q75))
+    #       ) + scale_x_discrete(breaks=c(1,2,3),label=c("Before","MoonUp","After")
+    #       ) + theme(axis.line = element_line(size=0.2),
+    #                 panel.background = element_blank())
+    #       saveName = paste(outDir,'/',CTname,'/',sites[k],"_",int,"_GEEGLM_MoonPresPlot_Probs.png",sep="")
+    #       ggsave(saveName,device="png", width=2, scale=3, height=0.75, units="in",dpi=600)
+    #       while (dev.cur()>1) {dev.off()}
+    #       saveName = paste(outDir,'/',CTname,'/',sites[k],"_",int,"_GEEGLM_MoonPresPlot_Probs.pdf",sep="")
+    #       ggsave(saveName,device="pdf", width=2, scale=3, height=0.75, units="in",dpi=600)
+    #       while (dev.cur()>1) {dev.off()}
+    # 
+    #       Presdens =  ggplot(masterLun,aes(x=as.numeric(as.factor(MoonPres)))
+    #       )+geom_histogram(aes(y=..ncount..),
+    #                        fill='#66B2FF',
+    #                        binwidth = 0.5,
+    #                        alpha=0.5
+    #       ) + scale_x_discrete(breaks=c(1,2,3),
+    #                            label=c("Pre","MoonUp","Post")
+    #       ) + labs(y="Normalized Count",x=NULL
+    #       ) + theme_minimal()
+    #       saveName = paste(outDir,'/',CTname,'/',sites[k],"_",int,"_GEEGLM_MoonPresDataDensity.png",sep="")
+    #       ggsave(saveName,device="png", width=4, scale=4, height=0.5, units="in",dpi=600)
+    #       while (dev.cur()>1) {dev.off()}
+    #       saveName = paste(outDir,'/',CTname,'/',sites[k],"_",int,"_GEEGLM_MoonPresDataDensity.pdf",sep="")
+    #       ggsave(saveName,device="pdf", width=4, scale=4, height=0.5, units="in",dpi=600)
+    #       while (dev.cur()>1) {dev.off()}
+    #     }
+    #   }
   }
   
 }
