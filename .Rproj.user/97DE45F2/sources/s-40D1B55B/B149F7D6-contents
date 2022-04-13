@@ -23,7 +23,7 @@ dfList = list.files(path=modelDFDir,pattern=paste('*',int,'_MasterTempLun.csv',s
 ##### CREATE MODELS USING FIXED SPLINES --------------------------
 
 ### JD, MPh, NT, MPr, Yr models ----------------------------------
-
+for (i in 1:length(dfList)){
 # load file
 thisSite = data.frame(read.csv(dfList[i]))
 CTname = str_remove(dfList[i],paste(modelDFDir,'/',sep="")) # get the species/CT name
@@ -44,8 +44,8 @@ if (site=="HAT"){ # for HAT only model 2017-2019
                 knots=quantile(thisSite$NormTime[keepInd],probs=c(0.275,0.5,0.725)),
                 Boundary.knots=c(-1,1),
                 periodic=T)
-  MPhs = mSpline(masterLun$MoonPhase[keepInd],
-                 knots=quantile(masterLun$MoonPhase[keepInd],probs=c(0.275,0.5,0.725)),
+  MPhs = mSpline(thisSite$MoonPhase[keepInd],
+                 knots=quantile(thisSite$MoonPhase[keepInd],probs=c(0.275,0.5,0.725)),
                  Boundary.knots=c(0,1),
                  periodic=T)
   JDs = mSpline(thisSite$JulianDay[keepInd],
@@ -63,8 +63,8 @@ if (site=="HAT"){ # for HAT only model 2017-2019
                 knots=quantile(thisSite$NormTime,probs=c(0.275,0.5,0.725)),
                 Boundary.knots=c(-1,1),
                 periodic=T)
-  MPhs = mSpline(masterLun$MoonPhase[startInd],
-                 knots=quantile(masterLun$MoonPhase[startInd],probs=c(0.275,0.5,0.725)),
+  MPhs = mSpline(thisSite$MoonPhase,
+                 knots=quantile(thisSite$MoonPhase,probs=c(0.275,0.5,0.725)),
                  Boundary.knots=c(0,1),
                  periodic=T)
   JDs = mSpline(thisSite$JulianDay,
@@ -77,10 +77,14 @@ if (site=="HAT"){ # for HAT only model 2017-2019
 }
 
 # Fit full model
-tempMod = geeglm(Pres~JDs
-                 +NTs
+tempMod = geeglm(Pres~NTs
+                 +JDs
+                 +MPhs
+                 +LF
                  +YrF
-                 +JDs:NTs,
+                 +NTs:JDs
+                 +NTs:MPhs
+                 +MPhs:LF,
                  family=binomial,
                  id=GroupID,
                  corstr="ar1")
@@ -91,23 +95,34 @@ PV = getPvalues(tempMod)
 # Iteratively remove non-signif covars, re-run model to arrive at final model
 if (sum(PV$'p-value'<0.05)==length(PV$'p-value')){ # if all variables are significant, save
   if (tempMod$geese$error==0){ # if model converged, save model and summary
-    sinkName = paste(outDir,'/',CTname,'/',site,"_",int,"_GEEGLMSummary_JDNTYr_5I.txt",sep="")
+    sinkName = paste(outDir,'/',CTname,'/',site,"_",int,"_GEEGLMSummary_TempLun.txt",sep="")
     sink(sinkName)
     print(PV)
     sink()
-    save(tempMod,PV,file=paste(outDir,'/',CTname,'/',site,"_",int,"_Model_JDNTYr_5I.Rdata",sep=""))
+    save(tempMod,PV,file=paste(outDir,'/',CTname,'/',site,"_",int,"_Model_TempLun.Rdata",sep=""))
   } else { # if model did not converge, don't save model, only summary indicating non-convergence
-    sinkName = paste(outDir,'/',CTname,'/',site,"_",int,"_GEEGLMSummary_JDNTYr_5I.txt",sep="")
+    sinkName = paste(outDir,'/',CTname,'/',site,"_",int,"_GEEGLMSummary_TempLun.txt",sep="")
     sink(sinkName)
     print('Model did not converge')
     sink()
   }
-
+} else if (sum(PV$'p-value'<0.05)==0){ # if no significant variables, only save summary indicating non-significance
+  sinkName = paste(outDir,'/',CTname,'/',site,"_",int,"_GEEGLMSummary_TempLun.txt",sep="")
+  sink(sinkName)
+  print('No significance')
+  sink()
 } else {
   PV2 = PV
   while (sum(PV2$'p-value'<0.05) < length(PV2$'p-value')){
-    if (PV2$'p-value'[PV2$'Variable'=="JDs:NTs"]<0.05){ # if interaction term is significant, keep both contributing terms in model
+    # if interaction term is significant, keep both contributing terms in model
+    if (PV2$'p-value'[PV2$'Variable'=="NTs:JDs"]<0.05){ 
       PV2$'p-value'[1:2] = 0.01
+    }
+    if (PV2$'p-value'[PV2$'Variable'=="NTs:MPhs"]<0.05){ 
+      PV2$'p-value'[c(1,3)] = 0.01
+    }
+    if (PV2$'p-value'[PV2$'Variable'=="MPhs:LF"]<0.05){
+      PV2$'p-value'[3:4] = 0.01
     }
     whichVars = which(PV2$'p-value'<0.05)
     str1 = "tempMod = geeglm(Pres~"
@@ -124,20 +139,25 @@ if (sum(PV$'p-value'<0.05)==length(PV$'p-value')){ # if all variables are signif
     eval(parse(text=modelCall))
     PV = getPvalues(tempMod)
     PV2 = PV
-    if (any(PV2$'Variable'=="JDs:NTs")){
-      if (PV2$'p-value'[PV2$'Variable'=="JDs:NTs"]<0.05){ # if interaction term is significant, keep both contributing terms in model
+    # if interaction term is significant, keep both contributing terms in model
+    if (PV2$'p-value'[PV2$'Variable'=="NTs:JDs"]<0.05){ 
         PV2$'p-value'[1:2] = 0.01
-      }
+    }
+    if (PV2$'p-value'[PV2$'Variable'=="NTs:MPhs"]<0.05){ 
+      PV2$'p-value'[c(1,3)] = 0.01
+    }
+    if (PV2$'p-value'[PV2$'Variable'=="MPhs:LF"]<0.05){
+      PV2$'p-value'[3:4] = 0.01
     }
   }
   if (tempMod$geese$error==0){ # if model converged, save model and summary
-    sinkName = paste(outDir,'/',CTname,'/',site,"_",int,"_GEEGLMSummary_JDNTYr_5I.txt",sep="")
+    sinkName = paste(outDir,'/',CTname,'/',site,"_",int,"_GEEGLMSummary_TempLun.txt",sep="")
     sink(sinkName)
     print(PV)
     sink()
-    save(tempMod,PV,file=paste(outDir,'/',CTname,'/',site,"_",int,"_Model_JDNTYr_5I.Rdata",sep=""))
+    save(tempMod,PV,file=paste(outDir,'/',CTname,'/',site,"_",int,"_Model_TempLun.Rdata",sep=""))
   } else { # if model did not converge, don't save model, only summary indicating non-convergence
-    sinkName = paste(outDir,'/',CTname,'/',site,"_",int,"_GEEGLMSummary_JDNTYr_5I.txt",sep="")
+    sinkName = paste(outDir,'/',CTname,'/',site,"_",int,"_GEEGLMSummary_TempLun.txt",sep="")
     sink(sinkName)
     print('Model did not converge')
     sink()
@@ -146,7 +166,7 @@ if (sum(PV$'p-value'<0.05)==length(PV$'p-value')){ # if all variables are signif
 
 end = Sys.time()
 end-start
-
+}
 ### JD, Yr, NormTime Models --------------------------
 for (i in 1:numel(dfList)){
   # 
