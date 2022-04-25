@@ -45,6 +45,7 @@ normTimeFileList = list.files(path=normTimeDir,pattern='*.csv',
 #                          include.dirs=FALSE,no..=TRUE)
 
 for (i in goodIdx){  # for each species' file
+
   
   thisCT = data.frame(read.csv(tsFileList[i]))  # load file
   attribs = attributes(thisCT)  # find names of sites (all columns but first)
@@ -66,6 +67,7 @@ for (i in goodIdx){  # for each species' file
   }
   
   for (j in unlist(goodSite[i])){ # for each site
+
     
     numClicks = as.numeric(thisCT[,j+1]) # get presence data for this site
     #pres = which(numClicks!=0)
@@ -250,8 +252,8 @@ for (i in goodIdx){  # for each species' file
                        LunFact,
                        hatSite)
         colnames(master) = c("Presence",
-                             "TimeStamp","
-                             GroupID",
+                             "TimeStamp",
+                             "GroupID",
                              "JulianDay",
                              "Year",
                              "StudyYear",
