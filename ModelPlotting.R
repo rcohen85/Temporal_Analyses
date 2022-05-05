@@ -28,6 +28,7 @@ dfList = list.files(path=modelDFDir,pattern=paste('*',int,'_MasterTempLun.csv',s
 #                      include.dirs=FALSE,no..=TRUE)
 
 species = list.dirs(outDir,recursive=FALSE)
+species = species[-which(!is.na(str_match(species,"plots")))]
 modPerf = data.frame(Species=as.character(),
                      Site=as.character(),
                      PropGoodResid=as.numeric())
