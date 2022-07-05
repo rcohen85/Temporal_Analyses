@@ -33,6 +33,9 @@ modPerf = data.frame(Species=as.character(),
                      Site=as.character(),
                      PropGoodResid=as.numeric())
 
+PresStats = list()
+siteNames = c("HZ","OC","NC","BC","WC","NFC","HAT","GS","BP","BS","JAX")
+
 for ( i in c(1:8,10:numel(species))){
   
   JDmodFiles = list.files(path=species[i],pattern="*Model_TempLun3.Rdata",
@@ -40,16 +43,46 @@ for ( i in c(1:8,10:numel(species))){
   # LunmodFiles = list.files(path=species[i],pattern="*Model_LunPhaseAltPres.Rdata",
   #                          full.names=TRUE,recursive=FALSE,include.dirs=FALSE,no..=TRUE)
   CTname = str_remove(species[i],paste(outDir,'/',sep=""))
-  
+  PresStats[[CTname]] = data.frame("ModPerf"=numeric(11),
+                                   "JDSignif"=numeric(11),
+                                   "JDPeak"=numeric(11),
+                                   "MPhSignif"=numeric(11),
+                                   "LunarPeak"=numeric(11),
+                                   "NTSignif"=numeric(11),
+                                   "NTJDSignif"=numeric(11),
+                                   "NTMPhSignif"=numeric(11),
+                                   "DielProp"=numeric(11),
+                                   "DielPeak"=numeric(11))
+  rownames(PresStats[[CTname]]) = siteNames
   sites = list()
+  
   for (j in 1:numel(JDmodFiles)){
     
     site = str_remove(JDmodFiles[j],paste(outDir,"/",CTname,"/",sep=""))
     sites = c(sites,str_remove(site,"_5minBin_Model_TempLun3.Rdata"))
     if (sites[j]=="NULL"){
       stop("Didn't get site name")}
+    siteInd = which(!is.na(str_match(siteNames,unlist(sites[j]))))
     
     load(JDmodFiles[j]) # load model
+    
+    # Save term significance
+    if (any(PV$Variable=="JDs")) {
+      if(PV$'p-value'[PV$Variable=="JDs"]=="<0.0001"){PresStats[[CTname]]$JDSignif[siteInd] = 0.0001
+      } else {PresStats[[CTname]]$JDSignif[siteInd] = as.numeric(PV$'p-value'[PV$Variable=="JDs"])}
+    } else {PresStats[[CTname]]$JDSignif[siteInd] = "NS" }
+    if (any(PV$Variable=="NTs")) {
+      if(PV$'p-value'[PV$Variable=="NTs"]=="<0.0001"){PresStats[[CTname]]$NTSignif[siteInd] = 0.0001
+      } else {PresStats[[CTname]]$NTSignif[siteInd] = as.numeric(PV$'p-value'[PV$Variable=="NTs"])}
+    } else {PresStats[[CTname]]$NTSignif[siteInd] = "NS" }
+    if (any(PV$Variable=="NTs:JDs")) {
+      if(PV$'p-value'[PV$Variable=="NTs:JDs"]=="<0.0001"){PresStats[[CTname]]$NTJDSignif[siteInd] = 0.0001
+      } else {PresStats[[CTname]]$NTJDSignif[siteInd] = as.numeric(PV$'p-value'[PV$Variable=="NTs:JDs"])}
+    } else {PresStats[[CTname]]$NTJDSignif[siteInd] = "NS" }
+    if (any(PV$Variable=="NTs:MPhs")) {
+      if(PV$'p-value'[PV$Variable=="NTs:MPhs"]=="<0.0001"){PresStats[[CTname]]$NTMPhSignif[siteInd] = 0.0001
+      } else {PresStats[[CTname]]$NTMPhSignif[siteInd] = as.numeric(PV$'p-value'[PV$Variable=="NTs:MPhs"])}
+    } else {PresStats[[CTname]]$NTMPhSignif[siteInd] = "NS" }
     
     if (tempMod$geese$error==0){ # not all models converged, don't plot non-converged models
       
@@ -86,15 +119,16 @@ for ( i in c(1:8,10:numel(species))){
         thisSite = thisSite[startInd,]
       }
       
-      binRes = binned_residuals_RC(tempMod)
-      resid_ok = sum(binRes$group == "yes")/length(binRes$group)
-      thisModPer = cbind(CTname,sites[j],round(resid_ok,digits=5))
-      modPerf = rbind(modPerf,thisModPer)
-      
-      # plotting of binned residuals stopped working after a system update, unable to debug so far
-      png(file=paste(outDir,'/',CTname,'/',sites[j],"_BinResidTL.png",sep=""),width = 400, height = 300, units = "px")
-      print(binned_residuals_RC(tempMod))
-      while (dev.cur()>1) {dev.off()}
+      # calculation and plotting of binned residuals stopped working after a system update, unable to debug so far
+      # binRes = binned_residuals_RC(tempMod)
+      # resid_ok = sum(binRes$group == "yes")/length(binRes$group)
+      # thisModPer = cbind(CTname,sites[j],round(resid_ok,digits=5))
+      # modPerf = rbind(modPerf,thisModPer)
+      # PresStats[[CTname]]$ModPerf[siteInd] = unlist(thisModPer[3])
+      # 
+      # png(file=paste(outDir,'/',CTname,'/',sites[j],"_BinResidTL.png",sep=""),width = 400, height = 300, units = "px")
+      # print(binned_residuals_RC(tempMod))
+      # while (dev.cur()>1) {dev.off()}
       
       ## Bootstrap GEEGLM parameter estimates for later construction of confidence intervals ----------------
       BootstrapParameters1<-rmvnorm(10000, coef(tempMod), summary(tempMod)$cov.unscaled)
@@ -121,7 +155,7 @@ for ( i in c(1:8,10:numel(species))){
       MPhForPlotting<- seq(min(thisSite$MoonPhase), max(thisSite$MoonPhase), length=1000)
       MPhBasis<- mSpline(MPhForPlotting,
                          knots=quantile(thisSite$MoonPhase, probs=c(0.275,0.5,0.725)),
-                         Boundary.knots=c(-1,1),
+                         Boundary.knots=c(0,1),
                          periodic=T)
       
       # Calculate each smooth term at its mean value
@@ -149,6 +183,8 @@ for ( i in c(1:8,10:numel(species))){
         
         plotDF = data.frame(JDayForPlotting,RealFit)
         colnames(plotDF) = c("Jday","Fit")
+        
+        PresStats[[CTname]]$JDPeak[siteInd] = JDayForPlotting[which(RealFit==max(RealFit))]
         
         JD = ggplot(plotDF, aes(Jday, Fit),
         ) + geom_smooth(aes(ymin=cil, ymax=ciu),
@@ -260,6 +296,8 @@ for ( i in c(1:8,10:numel(species))){
         plotDF = data.frame(NTForPlotting,RealFit)
         colnames(plotDF) = c("NormTime","Fit")
         
+        # PresStats[[CTname]]$DielPeak[siteInd] = NTForPlotting[which(RealFit==max(RealFit))]
+        
         NT = ggplot(plotDF, aes(NormTime, Fit),
         ) + geom_smooth(aes(ymin=cil, ymax=ciu),
                         color="#16A7CA",
@@ -306,8 +344,8 @@ for ( i in c(1:8,10:numel(species))){
         FitJD<- JDBasis%*%(coef(tempMod)[JDInd]) # multiply basis functions by model coefficients to get values of spline at each X
         FitNT<- NTBasis%*%(coef(tempMod)[NTInd]) # multiply basis functions by model coefficients to get values of spline at each X
         
-        ### Plot NT smooth (if significant and not also modified by MPh) ------------------
-        if (PV$'p-value'[PV$'Variable'=="NTs"]<0.05 & isempty(NTMPhInd)){
+        ### Plot NT smooth (if not also modified by MPh) ------------------
+        if (isempty(NTMPhInd)){
           ## NT at different values of JD
           IntPlotDF = numeric()
           IntCI = numeric()
@@ -341,7 +379,7 @@ for ( i in c(1:8,10:numel(species))){
           IntCI$Fit2 = as.factor(IntCI$Fit2)
           
           NTJD = ggplot(
-          ) + geom_line(data=IntPlotDF,aes(x=NormTime,y=Data,group=Fit,color=Fit),size=1
+          ) + geom_line(data=IntPlotDF,aes(x=NormTime,y=Data,group=Fit,color=Fit),size=0.5
           ) + scale_color_manual("Fit",values=c("#33FFE0","#335CFF","#D933FF","#FF334B"),
                                  labels=c("Winter","Spring","Summer","Fall"),
                                  name=NULL
@@ -402,7 +440,7 @@ for ( i in c(1:8,10:numel(species))){
           colnames(IntCI) = c("NormTime","Ymin","Ymax")
           
           NTJDInt = ggplot(
-          ) + geom_line(data=IntPlotDF,aes(x=NormTime,y=Data),size=1,color="51D4A5"
+          ) + geom_line(data=IntPlotDF,aes(x=NormTime,y=Data),size=0.5,color="51D4A5"
           ) + geom_ribbon(data=IntCI,aes(x=NormTime,ymin=Ymin, ymax=Ymax),
                           fill="51D4A5",
                           alpha=0.2,
@@ -426,8 +464,9 @@ for ( i in c(1:8,10:numel(species))){
           while (dev.cur()>1) {dev.off()}
         }
         
-        ### Plot JD smooth (if significant)  ------------------------------
-        if (PV$'p-value'[PV$'Variable'=="JDs"]<0.05){
+        
+        ### Plot JD smooth ------------------------------
+        # if (as.numeric(PV$'p-value'[PV$'Variable'=="JDs"])<0.05){
           # ## JD at different values of NT
           # IntPlotDF = numeric()
           # IntCI = numeric()
@@ -510,6 +549,7 @@ for ( i in c(1:8,10:numel(species))){
           # IntCI = cbind(JDayForPlotting,inv.logit(t(cisInt))) # get lower and upper CI bounds
           IntCI = cbind(JDayForPlotting,t(cisInt)) # get lower and upper CI bounds
           
+          PresStats[[CTname]]$JDPeak[siteInd] = JDayForPlotting[which(RealFitInt==max(RealFitInt))]
           
           IntPlotDF = cbind(JDayForPlotting,RealFitInt)
           
@@ -519,7 +559,7 @@ for ( i in c(1:8,10:numel(species))){
           colnames(IntCI) = c("JulianDay","Ymin","Ymax")
           
           JDNTInt = ggplot(
-          ) + geom_line(data=IntPlotDF,aes(x=JulianDay,y=Data,),size=1,color="51D4A5"
+          ) + geom_line(data=IntPlotDF,aes(x=JulianDay,y=Data,),size=0.5,color="51D4A5"
           ) + geom_ribbon(data=IntCI,aes(x=JulianDay,ymin=Ymin, ymax=Ymax),
                           fill="51D4A5",
                           alpha=0.2,
@@ -540,7 +580,18 @@ for ( i in c(1:8,10:numel(species))){
           saveName = paste(outDir,'/',CTname,'/',sites[j],"_",int,"_GEEGLM_JDNTPlot_Overall.pdf",sep="")
           ggsave(saveName,device="pdf", width=2, scale=4, height=1, units="in",dpi=600)
           while (dev.cur()>1) {dev.off()}
-        }
+        # }
+          
+          # # calculate NT smooth at JD of peak predicted presence (based on JD averaged across all NT)
+          # peakInd = which(FitJD==max(FitJD))
+          # # Recreate interaction basis
+          # IntBasis = numeric()
+          # for (k in 1:3){
+          #   IntBasis = cbind(IntBasis,NTBasis[,1]*JDBasis[peakInd,k],NTBasis[,2]*JDBasis[peakInd,k],NTBasis[,3]*JDBasis[peakInd,k])
+          # }
+          # IntAdjust = IntBasis%*%coef(tempMod)[JDNTInd]
+          # RealFitInt<- FitNT+coef(tempMod)[1]+IntAdjust+MPhmean # add intercept, interaction term, and other terms at their mean values
+          # PresStats[[CTname]]$DielPeak[siteInd] = NTForPlotting[which(RealFitInt==max(RealFitInt))]
         
       }
       
@@ -551,8 +602,8 @@ for ( i in c(1:8,10:numel(species))){
         FitMPh<- MPhBasis%*%(coef(tempMod)[MPhInd]) # multiply basis functions by model coefficients to get values of spline at each X
         FitNT<- NTBasis%*%(coef(tempMod)[NTInd]) # multiply basis functions by model coefficients to get values of spline at each X
 
-        ### Plot NT smooth (if significant and not further modified by JD) ------------------
-        if (PV$'p-value'[PV$'Variable'=="NTs"]<0.05 & isempty(JDNTInd)){
+        ### Plot NT smooth (if not further modified by JD) ------------------
+        if (isempty(JDNTInd)){
           ## NT at different values of MPh
           IntPlotDF = numeric()
           IntCI = numeric()
@@ -587,7 +638,7 @@ for ( i in c(1:8,10:numel(species))){
           IntCI$Fit2 = as.factor(IntCI$Fit2)
 
           NTMPh = ggplot(
-          ) + geom_line(data=IntPlotDF,aes(x=NormTime,y=Data,group=Fit,color=Fit),size=1
+          ) + geom_line(data=IntPlotDF,aes(x=NormTime,y=Data,group=Fit,color=Fit),size=0.5
           ) + scale_color_manual("Fit",values=c("#33FFE0","#335CFF","#D933FF","#FF334B"),
                                  labels=c("New Moon","First Quarter","Full Moon","Third Quarter"),
                                  name=NULL
@@ -648,7 +699,7 @@ for ( i in c(1:8,10:numel(species))){
           colnames(IntCI) = c("NormTime","Ymin","Ymax")
 
           NTMPh = ggplot(
-          ) + geom_line(data=IntPlotDF,aes(x=NormTime,y=Data),size=1,color="51D4A5"
+          ) + geom_line(data=IntPlotDF,aes(x=NormTime,y=Data),size=0.5,color="51D4A5"
           ) + geom_ribbon(data=IntCI,aes(x=NormTime,ymin=Ymin, ymax=Ymax),
                           fill="51D4A5",
                           alpha=0.2,
@@ -672,8 +723,19 @@ for ( i in c(1:8,10:numel(species))){
           while (dev.cur()>1) {dev.off()}
         }
 
-        ### Plot MPh smooth (if significant)  ------------------------------
-        if (PV$'p-value'[PV$'Variable'=="MPhs"]<0.05){
+        # # calculate NT smooth at MPh of peak predicted presence
+        # peakInd = which(FitMPh==max(FitMPh))
+        # # Recreate interaction basis
+        # IntBasis = numeric()
+        # for (k in 1:3){
+        #   IntBasis = cbind(IntBasis,NTBasis[,1]*JDBasis[peakInd,k],NTBasis[,2]*JDBasis[peakInd,k],NTBasis[,3]*JDBasis[peakInd,k])
+        # }
+        # IntAdjust = IntBasis%*%coef(tempMod)[JDNTInd]
+        # RealFitInt<- FitNT+coef(tempMod)[1]+IntAdjust+MPhmean # add intercept, interaction term, and other terms at their mean values
+        # PresStats[[CTname]]$DielPeak[siteInd] = NTForPlotting[which(RealFitInt==max(RealFitInt))]
+        
+        ### Plot MPh smooth  ------------------------------
+        # if (as.numeric(PV$'p-value'[PV$'Variable'=="MPhs"])<0.05){
           ## MPh at during daytime and nighttime
           IntPlotDF = numeric()
           IntCI = numeric()
@@ -714,7 +776,7 @@ for ( i in c(1:8,10:numel(species))){
           IntCI$Fit2 = as.factor(IntCI$Fit2)
 
           MPhNT = ggplot(
-          ) + geom_line(data=IntPlotDF,aes(x=MoonPhase,y=Data,group=Fit,color=Fit),size=1
+          ) + geom_line(data=IntPlotDF,aes(x=MoonPhase,y=Data,group=Fit,color=Fit),size=0.5
           ) + scale_color_manual("Fit",values=c("#335CFF","#D933FF"),
                                  labels=c("Day","Night"),
                                  name=NULL
@@ -740,7 +802,7 @@ for ( i in c(1:8,10:numel(species))){
           ggsave(saveName,device="pdf", width=2, scale=5, height=1, units="in",dpi=600)
           while (dev.cur()>1) {dev.off()}
 
-        }
+        # }
 
       }
 
@@ -801,7 +863,7 @@ for ( i in c(1:8,10:numel(species))){
           IntCI$Fit2 = as.factor(IntCI$Fit2)
           
           plotList[[Titles[l]]] = ggplot(
-          ) + geom_line(data=IntPlotDF,aes(x=NormTime,y=Data,group=Fit,color=Fit),size=1
+          ) + geom_line(data=IntPlotDF,aes(x=NormTime,y=Data,group=Fit,color=Fit),size=0.5
           ) + scale_color_manual("Fit",values=c("#33FFE0","#335CFF","#D933FF","#FF334B"),
                                  # labels=c("New Moon","First Quarter","Full Moon","Third Quarter"),
                                  # name=NULL
@@ -824,7 +886,7 @@ for ( i in c(1:8,10:numel(species))){
           
           if (l==4){ # grab legend to later plot once alongside multiple panels
           legendPlot = ggplot(
-          ) + geom_line(data=IntPlotDF,aes(x=NormTime,y=Data,group=Fit,color=Fit),size=1
+          ) + geom_line(data=IntPlotDF,aes(x=NormTime,y=Data,group=Fit,color=Fit),size=0.5
           ) + scale_color_manual("Fit",values=c("#33FFE0","#335CFF","#D933FF","#FF334B"),
                                  labels=c("New Moon","First Quarter","Full Moon","Third Quarter"),
                                  name=NULL)
@@ -836,6 +898,10 @@ for ( i in c(1:8,10:numel(species))){
         grid.arrange(grobs=plotList,ncol=9,nrow=1,layout_matrix=rbind(c(1,1,2,2,3,3,4,4,5)),top=paste(CTname,'at',sites[j]))
         while (dev.cur()>1) {dev.off()}
         
+        g=arrangeGrob(grobs=plotList,ncol=9,nrow=1,layout_matrix=rbind(c(1,1,2,2,3,3,4,4,5)),top=paste(CTname,'at',sites[j]))
+        savename=paste(outDir,'/',CTname,'/',sites[j],"_",int,"_GEEGLM_NTJDMPhPlot_Partial.pdf",sep="")
+        ggsave(savename,g,device="pdf", width=1800, scale=5, height=400, units="px",dpi=600)
+        while (dev.cur()>1) {dev.off()}
       }
       
       # Year (as boxplot) -----------------------------------
@@ -891,12 +957,37 @@ for ( i in c(1:8,10:numel(species))){
         while (dev.cur()>1) {dev.off()}
         
       }
+      
+      # Calculate proportion of presence bins during day, during period of peak presence
+      if (PresStats[[CTname]]$JDPeak[siteInd]!=0){ # If we know when seasonal peak presence is
+        # grab 90 days centered around peak presence
+        peakPres = seq(round(PresStats[[CTname]]$JDPeak[siteInd])-45,round(PresStats[[CTname]]$JDPeak[siteInd]+45))
+        peakPres[peakPres<0] = peakPres[peakPres<0]+365
+        peakPres[peakPres>365] = peakPres[peakPres>365]-365
+        peakPresBins = which(thisSite$JulianDay%in%peakPres)
+      } else { 
+        # Otherwise look across the whole year
+        peakPresBins = seq(1,length(thisSite$JulianDay))}
+      
+      # during time of interest, find presence bins
+      presBins = which(thisSite$Presence[peakPresBins]==1)
+      # identify which presence bins are during the day
+      dayBins = which(thisSite$NormTime[peakPresBins[presBins]]<0)
+      # calculate proportion of presence bins are during the day
+      PresStats[[CTname]]$DielProp[siteInd] = length(dayBins)/length(presBins)
     }
   }
+  
+  gotMods = which(rownames(PresStats[[CTname]])%in%sites)
+  noMods = setdiff(seq(1,11),gotMods)
+  PresStats[[CTname]][noMods,] = rep(NA,ncol(PresStats[[CTname]]))
+  
+  
 }
 
 colnames(modPerf) = c("Species","Site","PropGoodResid")
 save(modPerf,file=paste(outDir,'/TempLun3ModPerf.Rdata',sep=""))
+save(PresStats,file=paste(outDir,'/PresStats.Rdata',sep=""))
 
 
 ## Old model fit plots ---------------------
